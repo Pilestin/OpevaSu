@@ -1,0 +1,7 @@
+streamlit>=1.28.0
+pymongo>=4.6.0
+python-dotenv>=1.0.0
+werkzeug>=3.0.1
+Pillow>=10.1.0
+pandas>=2.1.2
+numpy>=1.26.0
