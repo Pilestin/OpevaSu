@@ -78,7 +78,6 @@ def write_product_info(product):
         <div class="product-card">
             <div class="product-info">
                 <h2>{product_name}</h2>
-                <p><strong>resim:</strong> {product_image_url}</p>
                 <p><strong>Ürün Adı:</strong> {product_name}</p>
                 <p><strong>Açıklama:</strong> {product_description}</p>
                 <p><strong>Fiyat:</strong> ₺{product_price:.2f}</p>
@@ -96,22 +95,27 @@ def simple_order_form(user, product):
     st.subheader("Sipariş Ver")
 
     with st.form(key="order_form"):
-        # Sipariş bilgileri
         quantity = st.number_input("Sipariş Adeti", min_value=1, value=1)
         
-        # Teslimat zamanı - 1 saatlik dilimlerde
-        delivery_slots = [
-            "09:00-10:00",
-            "10:00-11:00",
-            "11:00-12:00",
-            "12:00-13:00",
-            "13:00-14:00",
-            "14:00-15:00",
-            "15:00-16:00",
-            "16:00-17:00",
-            "17:00-18:00"
-        ]
-        delivery_time = st.selectbox("Teslimat Saati", options=delivery_slots)
+        # Teslimat zamanı seçimi
+        col1, col2 = st.columns(2)
+        with col1:
+            default_ready_time = datetime.time(9, 0)  # 09:00
+            ready_time = st.time_input(
+                "Hazır Olma Saati",
+                value=default_ready_time,
+                step=datetime.timedelta(minutes=1)
+            )
+        with col2:
+            default_due_time = datetime.time(10, 0)  # 10:00
+            due_time = st.time_input(
+                "Teslim Saati",
+                value=default_due_time,
+                step=datetime.timedelta(minutes=1)
+            )
+        
+        if due_time <= ready_time:
+            st.error("⚠️ Teslim saati, hazır olma saatinden sonra olmalıdır!")
         
         # Sipariş notları
         notes = st.text_area(
@@ -135,12 +139,10 @@ def simple_order_form(user, product):
         
         submitted = st.form_submit_button(label="Sipariş Ver", use_container_width=True)
     
-    if submitted:
-        # Parse delivery time into ready_time and due_time
-        ready_time, due_time = delivery_time.split("-")
-        
+    if submitted and due_time > ready_time:
         # Create order data
         now = datetime.datetime.now()
+        # order_date = now
         order_id = generate_order_id()
         task_id = f"task_{now.strftime('%Y%m%d')}_{uuid.uuid4().hex[:3]}"
         
@@ -153,8 +155,9 @@ def simple_order_form(user, product):
                 "latitude": float(user.get("latitude", 39.7598)),
                 "longitude": float(user.get("longitude", 30.5042))
             },
-            "ready_time": ready_time,
-            "due_date": due_time,
+            "ready_time": ready_time.strftime("%H:%M"),
+            "due_date": due_time.strftime("%H:%M"),
+            "order_date": now,
             "service_time": 120,
             "request": {
                 "product_id": product["product_id"],
@@ -172,9 +175,11 @@ def simple_order_form(user, product):
             "created_at": now,
             "updated_at": now
         }
-        
+
         if save_order(order_data):
             st.success("✅ Sipariş başarıyla kaydedildi!")
+            st.write("Sipariş ID:", order_id)
+            st.write(order_data)
             if st.button("Siparişlerim Sayfasına Git"):
                 navigate_to("orders")
                 st.rerun()
@@ -230,6 +235,11 @@ def dashboard_page(css_file=None):
         return
     
     write_product_info(product)
-    # Use the new simpler form
-    simple_order_form(st.session_state.user, product)
+    
+    if st.session_state.user.get("role") == "admin":
+        st.info("🔒 Admin kullanıcıları sipariş sayfasına erişemez. Siparişleri yönetmek için Admin Panelini kullanabilirsiniz.")
+        return
+    else:
+        # Use the new simpler form
+        simple_order_form(st.session_state.user, product)
 

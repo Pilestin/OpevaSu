@@ -15,6 +15,11 @@ def orders_page(css_file):
     with st.sidebar:
         sidebar()
     
+    # Admin kontrolü
+    if st.session_state.user.get("role") == "admin":
+        st.info("🔒 Admin kullanıcıları sipariş sayfasına erişemez. Siparişleri yönetmek için Admin Panelini kullanabilirsiniz.")
+        return
+    
     # Ana içerik
     st.markdown("<h1 class='page-title'>Siparişlerim</h1>", unsafe_allow_html=True)
     

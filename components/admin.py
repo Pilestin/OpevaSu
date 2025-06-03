@@ -29,17 +29,65 @@ def admin_page(css_file):
         st.subheader("Sistem Kullanıcıları")
         users = get_all_users()
         if users:
-            # Create a dataframe for users
-            user_data = []
+            # Kullanıcı sayısını göster
+            st.info(f"Toplam {len(users)} kullanıcı bulundu")
+            
+            # Her bir kullanıcı için kart oluştur
             for user in users:
-                user_data.append({
-                    "ID": user.get("user_id"),
-                    "Ad Soyad": user.get("full_name"),
-                    "Email": user.get("email"),
-                    "Rol": user.get("role", "user"),
-                    "Durum": "Aktif" if user.get("is_active", True) else "Pasif"
-                })
-            st.dataframe(user_data, use_container_width=True)
+                with st.container():
+                    col1, col2 = st.columns([1, 3])
+                    
+                    with col1:
+                        # Profil resmi container'ı
+                        st.markdown(f"""
+                            <div style='text-align: center; padding: 5px;'>
+                                <div style='font-size: 0.8em; color: gray;'>ID: {user.get('user_id')}</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
+                        if user.get('profile_picture'):
+                            st.image(
+                                user['profile_picture'],
+                                width=100
+                            )
+                        else:
+                            st.markdown(
+                                """
+                                <div style='background-color: #f0f2f6; 
+                                          border-radius: 50%; 
+                                          width: 100px; 
+                                          height: 100px; 
+                                          display: flex; 
+                                          align-items: center; 
+                                          justify-content: center; 
+                                          font-size: 40px;'>
+                                    👤
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+                    
+                    with col2:
+                        role_color = "green" if user.get('role') == "admin" else "blue"
+                        st.markdown(f"""
+                            <div style='padding: 10px;'>
+                                <h3 style='margin:0;'>{user.get('full_name')}</h3>
+                                <span style='background-color: {role_color}; 
+                                           color: white; 
+                                           padding: 2px 8px; 
+                                           border-radius: 10px; 
+                                           font-size: 0.8em;'>
+                                    {user.get('role', 'user').upper()}
+                                </span>
+                                <p style='margin-top: 5px;'>
+                                    📧 {user.get('email')}<br>
+                                    📱 {user.get('phone_number')}<br>
+                                    📍 {user.get('address')}
+                                </p>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    
+                    st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
         else:
             st.info("Henüz kayıtlı kullanıcı bulunmuyor.")
 
@@ -104,40 +152,47 @@ def admin_page(css_file):
             )
 
             # Sipariş miktarı
-            
             quantity = st.number_input("Sipariş Adeti", min_value=1, value=1)
-            # with col2:
-            #     demand = st.number_input("Talep (Litre)", min_value=19, value=19)
             
             # Teslimat zamanı
             col1, col2 = st.columns(2)
             with col1:
-                delivery_slots = [
-                    "09:00-10:00", "10:00-11:00", "11:00-12:00",
-                    "12:00-13:00", "13:00-14:00", "14:00-15:00",
-                    "15:00-16:00", "16:00-17:00", "17:00-18:00"
-                ]
-                delivery_time = st.selectbox("Teslimat Saati", options=delivery_slots)
+                default_ready_time = datetime.time(9, 0)  # 09:00
+                ready_time = st.time_input(
+                    "Hazır Olma Saati",
+                    value=default_ready_time,
+                    step=datetime.timedelta(minutes=30)
+                )
             with col2:
-                service_time = st.number_input("Servis Süresi (sec)", min_value=5, value=120)
+                default_due_time = datetime.time(10, 0)  # 10:00
+                due_time = st.time_input(
+                    "Teslim Saati",
+                    value=default_due_time,
+                    step=datetime.timedelta(minutes=30)
+                )
+            
+            if due_time <= ready_time:
+                st.error("⚠️ Teslim saati, hazır olma saatinden sonra olmalıdır!")
+
+            # Servis Süresi
+            service_time = st.number_input("Servis Süresi (sec)", min_value=5, value=120)
 
             # Notlar
             notes = st.text_area("Sipariş Notları", placeholder="Varsa eklemek istediğiniz notlar...")
 
             submitted = st.form_submit_button("Sipariş Oluştur", use_container_width=True)
 
-        if submitted:
+        if submitted and due_time > ready_time:
             try:
                 # Seçilen kullanıcı ve ürün bilgilerini al
                 user = user_options[selected_user]
                 product = product_options[selected_product]
 
                 demand = quantity * product["weight"]["value"]  # Varsayılan olarak 19 litre
-                # Teslimat zamanlarını ayır
-                ready_time, due_time = delivery_time.split("-")
 
                 # Sipariş verisi oluştur
                 now = datetime.datetime.now()
+                # order_date = now
                 order_id = f"order_{now.strftime('%Y%m%d')}_{uuid.uuid4().hex[:3]}"
                 task_id = f"task_{now.strftime('%Y%m%d')}_{uuid.uuid4().hex[:3]}"
 
@@ -150,8 +205,9 @@ def admin_page(css_file):
                         "latitude": float(user.get("latitude", 39.7598)),
                         "longitude": float(user.get("longitude", 30.5042))
                     },
-                    "ready_time": str(ready_time),
-                    "due_date": str(due_time),
+                    "order_date": now,
+                    "ready_time": ready_time.strftime("%H:%M"),
+                    "due_date": due_time.strftime("%H:%M"),
                     "service_time": str(service_time),
                     "request": {
                         "product_id": product["product_id"],

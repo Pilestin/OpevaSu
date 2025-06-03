@@ -97,12 +97,43 @@ def save_order(order_data):
         if db is None:
             return False
         
+        # Tarih verilerini MongoDB ISODate formatına çevir
+        now = datetime.datetime.now(datetime.timezone.utc)
+        
+        # Sipariş tarihini UTC'ye çevir
+        # order_date = datetime.datetime.combine(
+        #     order_data["order_date"],
+        #     datetime.time.min,
+        #     tzinfo=datetime.timezone.utc
+        # )
+        
+        # Zaman verilerini time.strftime ile string formatına çevir
+        if isinstance(order_data["ready_time"], datetime.time):
+            ready_time = order_data["ready_time"].strftime("%H:%M")
+        else:
+            ready_time = order_data["ready_time"]
+            
+        if isinstance(order_data["due_date"], datetime.time):
+            due_time = order_data["due_date"].strftime("%H:%M")
+        else:
+            due_time = order_data["due_date"]
+        
+        # Order data'yı güncelle
+        order_data.update({
+            "created_at": now,
+            "updated_at": now,
+            "order_date": now,
+            "ready_time": ready_time,
+            "due_date": due_time
+        })
+        
         # Orders koleksiyonuna ekle
         result = db.Orders.insert_one(order_data)
         return result.acknowledged
         
     except Exception as e:
         logger.error(f"Sipariş kaydetme hatası: {e}")
+        logger.error(f"Order data: {order_data}")  # Debug için veriyi logla
         return False
 
 def get_user_orders(user_id, status=None, start_date=None, end_date=None):
@@ -113,7 +144,7 @@ def get_user_orders(user_id, status=None, start_date=None, end_date=None):
             return []
         
         # Filtreleme kriterleri
-        query = {"customer_id": user_id}  # customer_id ile sorgu yap
+        query = {"customer_id": user_id}
         
         # Durum filtresi
         if status and status.lower() != "tümü":
@@ -126,23 +157,44 @@ def get_user_orders(user_id, status=None, start_date=None, end_date=None):
             }
             query["status"] = status_map.get(status.lower(), status.lower())
         
-        # Tarih filtresi
+        # Tarih filtresi - UTC zaman diliminde
         date_filter = {}
         if start_date:
-            date_filter["$gte"] = datetime.datetime.combine(start_date, datetime.time.min)
+            date_filter["$gte"] = datetime.datetime.combine(
+                start_date,
+                datetime.time.min,
+                tzinfo=datetime.timezone.utc
+            )
         if end_date:
-            date_filter["$lte"] = datetime.datetime.combine(end_date, datetime.time.max)
+            date_filter["$lte"] = datetime.datetime.combine(
+                end_date,
+                datetime.time.max,
+                tzinfo=datetime.timezone.utc
+            )
         
         if date_filter:
-            query["created_at"] = date_filter
+            query["order_date"] = date_filter
         
-        # Siparişleri al ve _id alanını string'e çevir
+        # MongoDB'den siparişleri al
         orders = list(db.Orders.find(query).sort("created_at", -1))
+        
+        # Tarih verilerini string'e çevir
         for order in orders:
             if '_id' in order:
                 order['_id'] = str(order['_id'])
+            if 'created_at' in order:
+                order['created_at'] = order['created_at'].isoformat()
+            if 'updated_at' in order:
+                order['updated_at'] = order['updated_at'].isoformat()
+            if 'order_date' in order:
+                order['order_date'] = order['order_date'].isoformat()
+            if 'ready_time' in order:
+                order['ready_time'] = order['ready_time'].strftime('%H:%M')
+            if 'due_date' in order:
+                order['due_date'] = order['due_date'].strftime('%H:%M')
         
         return orders
+        
     except Exception as e:
         logger.error(f"Sipariş listesi alma hatası: {e}")
         return []
@@ -284,7 +336,8 @@ def get_all_users():
         if db is None:
             return []
         
-        users = list(db.Users.find({}, {'_id': 0, 'password': 0}))
+        # user_id'ye göre sıralı olarak kullanıcıları al
+        users = list(db.Users.find({}, {'_id': 0, 'password': 0}).sort("user_id", 1))
         return users
     except Exception as e:
         logger.error(f"Kullanıcı listesi alma hatası: {e}")
