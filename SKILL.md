@@ -2,8 +2,8 @@
 
 SKILL dokümantasyonu yön bazlı olarak `.agent/` klasörü altına bölünmüştür:
 
-- `/home/runner/work/OpevaSu/OpevaSu/.agent/product/SKILL.md`
-- `/home/runner/work/OpevaSu/OpevaSu/.agent/frontend/SKILL.md`
-- `/home/runner/work/OpevaSu/OpevaSu/.agent/backend/SKILL.md`
-- `/home/runner/work/OpevaSu/OpevaSu/.agent/mobile/SKILL.md`
-- `/home/runner/work/OpevaSu/OpevaSu/.agent/quality/SKILL.md`
+- `.agent/product/SKILL.md`
+- `.agent/frontend/SKILL.md`
+- `.agent/backend/SKILL.md`
+- `.agent/mobile/SKILL.md`
+- `.agent/quality/SKILL.md`
