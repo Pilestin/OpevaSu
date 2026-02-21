@@ -1,11 +1,35 @@
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/+$/, "");
-
-async function request(path, options = {}) {
-  if (!API_BASE_URL) {
-    throw new Error("API adresi bulunamadi. EXPO_PUBLIC_API_BASE_URL ayarlanmali.");
+function resolveApiBaseUrl(rawValue) {
+  const trimmed = typeof rawValue === "string" ? rawValue.trim().replace(/^['"]|['"]$/g, "") : "";
+  if (!trimmed) {
+    return { value: "", error: "API adresi bulunamadi. EXPO_PUBLIC_API_BASE_URL ayarlanmali." };
   }
 
-  const url = `${API_BASE_URL}${path}`;
+  const withScheme = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : /^https?:/i.test(trimmed)
+      ? trimmed.replace(/^https?:/i, (match) => `${match}//`)
+      : trimmed;
+
+  const normalized = withScheme.replace(/\/+$/, "");
+  const isValid = /^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(normalized);
+  if (!isValid) {
+    return {
+      value: "",
+      error: `API adresi gecersiz: "${trimmed}". Ornek: http://157.230.17.89:3003`,
+    };
+  }
+
+  return { value: normalized, error: "" };
+}
+
+const API_BASE_URL_RESOLUTION = resolveApiBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
+
+async function request(path, options = {}) {
+  if (API_BASE_URL_RESOLUTION.error) {
+    throw new Error(API_BASE_URL_RESOLUTION.error);
+  }
+
+  const url = `${API_BASE_URL_RESOLUTION.value}${path}`;
   let response;
   try {
     response = await fetch(url, options);
