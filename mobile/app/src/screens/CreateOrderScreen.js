@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Image,
   Pressable,
   ScrollView,
@@ -15,6 +16,11 @@ import { ordersApi, productsApi } from "../services/api";
 import { colors, radii, shadows } from "../theme";
 
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
+  const hh = String(Math.floor(index / 2)).padStart(2, "0");
+  const mm = index % 2 === 0 ? "00" : "30";
+  return `${hh}:${mm}`;
+});
 
 function dateStamp() {
   const now = new Date();
@@ -53,6 +59,8 @@ export default function CreateOrderScreen() {
   const [address, setAddress] = useState(user?.address || "");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [timeTarget, setTimeTarget] = useState("ready");
 
   useEffect(() => {
     let mounted = true;
@@ -167,6 +175,20 @@ export default function CreateOrderScreen() {
     }
   };
 
+  const openTimePicker = (target) => {
+    setTimeTarget(target);
+    setTimePickerVisible(true);
+  };
+
+  const onSelectTime = (value) => {
+    if (timeTarget === "ready") {
+      setReadyTime(value);
+    } else {
+      setDueTime(value);
+    }
+    setTimePickerVisible(false);
+  };
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <Text style={styles.title}>Yeni Siparis</Text>
@@ -215,23 +237,17 @@ export default function CreateOrderScreen() {
         <View style={styles.twoColumns}>
           <View style={styles.col}>
             <Text style={styles.label}>Hazir olma</Text>
-            <TextInput
-              style={styles.input}
-              value={readyTime}
-              onChangeText={setReadyTime}
-              placeholder="09:00"
-              placeholderTextColor={colors.muted}
-            />
+            <Pressable style={styles.timeField} onPress={() => openTimePicker("ready")}>
+              <Text style={styles.timeValue}>{readyTime}</Text>
+              <Text style={styles.timeHint}>Sec</Text>
+            </Pressable>
           </View>
           <View style={styles.col}>
             <Text style={styles.label}>Teslim saati</Text>
-            <TextInput
-              style={styles.input}
-              value={dueTime}
-              onChangeText={setDueTime}
-              placeholder="10:00"
-              placeholderTextColor={colors.muted}
-            />
+            <Pressable style={styles.timeField} onPress={() => openTimePicker("due")}>
+              <Text style={styles.timeValue}>{dueTime}</Text>
+              <Text style={styles.timeHint}>Sec</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -264,6 +280,31 @@ export default function CreateOrderScreen() {
       <Pressable style={[styles.button, submitting && styles.buttonDisabled]} onPress={onSubmit} disabled={submitting}>
         <Text style={styles.buttonText}>{submitting ? "Kaydediliyor..." : "Siparis Ver"}</Text>
       </Pressable>
+
+      <Modal
+        visible={timePickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTimePickerVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {timeTarget === "ready" ? "Hazir olma saati" : "Teslim saati"}
+            </Text>
+            <ScrollView style={styles.timeList}>
+              {TIME_OPTIONS.map((time) => (
+                <Pressable key={time} style={styles.timeOption} onPress={() => onSelectTime(time)}>
+                  <Text style={styles.timeOptionText}>{time}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable style={styles.modalClose} onPress={() => setTimePickerVisible(false)}>
+              <Text style={styles.modalCloseText}>Kapat</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -365,6 +406,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
     color: colors.text,
   },
+  timeField: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: "#f8fafc",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  timeValue: {
+    color: colors.text,
+    fontWeight: "700",
+  },
+  timeHint: {
+    color: colors.primary,
+    fontWeight: "700",
+  },
   multiline: {
     minHeight: 72,
     textAlignVertical: "top",
@@ -401,5 +461,53 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "800",
     letterSpacing: 0.3,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 360,
+    maxHeight: "80%",
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: colors.text,
+    marginBottom: 8,
+  },
+  timeList: {
+    maxHeight: 360,
+  },
+  timeOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: radii.md,
+  },
+  timeOptionText: {
+    color: colors.text,
+    fontWeight: "700",
+  },
+  modalClose: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    alignItems: "center",
+    paddingVertical: 10,
+    backgroundColor: "#f8fafc",
+  },
+  modalCloseText: {
+    color: colors.muted,
+    fontWeight: "700",
   },
 });

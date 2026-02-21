@@ -44,6 +44,20 @@ export const ordersApi = {
       },
       body: JSON.stringify({ order }),
     }),
+  update: ({ token, orderId, updates }) =>
+    request(`/orders/${encodeURIComponent(orderId)}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ updates }),
+    }),
+  remove: ({ token, orderId }) =>
+    request(`/orders/${encodeURIComponent(orderId)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
 };
 
 export const productsApi = {

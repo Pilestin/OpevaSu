@@ -3,10 +3,10 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import LoginScreen from "../screens/LoginScreen";
-import OrdersScreen from "../screens/OrdersScreen";
-import CreateOrderScreen from "../screens/CreateOrderScreen";
-import ProfileScreen from "../screens/ProfileScreen";
+import LoginScreen from "../screens/LoginScreen.js";
+import OrdersScreen from "../screens/OrdersScreen.js";
+import CreateOrderScreen from "../screens/CreateOrderScreen.js";
+import ProfileScreen from "../screens/ProfileScreen.js";
 import { colors, radii } from "../theme";
 
 const AuthStack = createNativeStackNavigator();

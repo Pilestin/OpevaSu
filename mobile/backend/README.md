@@ -37,9 +37,11 @@ npm run dev
 - `GET /products`
 - `GET /orders`
 - `POST /orders`
+- `PUT /orders/:orderId`
+- `DELETE /orders/:orderId`
 - `GET /profile/:userId`
 - `PUT /profile/:userId`
 
 `POST /orders` davranisi:
-- `Packet/Paket/Package` urunleri `Order_S` koleksiyonuna yazilir.
+- `Packet/Paket/Package` urunleri `Orders_S` koleksiyonuna yazilir.
 - Diger urunler `Orders` koleksiyonuna yazilir.
