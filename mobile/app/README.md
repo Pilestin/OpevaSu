@@ -17,7 +17,17 @@ EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001
 
 Telefon cihazinda test ederken `127.0.0.1` yerine bilgisayarinizin LAN IP adresini kullanin.
 
-## 2.1) Mobile Backend (Node.js)
+## 2.1) EAS Build icin .env notu
+
+`eas build` cloud ortaminda calistigi icin yerel `.env` dosyaniz otomatik olarak gitmez.
+APK/AAB build'lerinde API adresini EAS environment variable olarak tanimlayin:
+
+```bash
+eas env:create --name EXPO_PUBLIC_API_BASE_URL --value http://157.230.17.89:3003 --environment preview
+eas env:create --name EXPO_PUBLIC_API_BASE_URL --value http://157.230.17.89:3003 --environment production
+```
+
+## 2.2) Mobile Backend (Node.js)
 
 Mobil uygulama Python backend'e baglanmaz. Asagidaki backend'i calistirin:
 

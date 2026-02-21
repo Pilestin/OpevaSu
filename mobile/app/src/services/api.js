@@ -1,13 +1,23 @@
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://127.0.0.1:3001";
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/+$/, "");
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, options);
+  if (!API_BASE_URL) {
+    throw new Error("API adresi bulunamadi. EXPO_PUBLIC_API_BASE_URL ayarlanmali.");
+  }
+
+  const url = `${API_BASE_URL}${path}`;
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    throw new Error(`Sunucuya baglanilamadi: ${url} (${error?.message || "Network request failed"})`);
+  }
   const contentType = response.headers.get("content-type") || "";
   const body = contentType.includes("application/json") ? await response.json() : await response.text();
 
   if (!response.ok) {
     const message = typeof body === "object" && body?.detail ? body.detail : "Beklenmeyen API hatasi";
-    throw new Error(message);
+    throw new Error(`HTTP ${response.status}: ${message}`);
   }
 
   return body;
