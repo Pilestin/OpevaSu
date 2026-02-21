@@ -26,6 +26,39 @@ function normalizeStatus(value) {
   return STATUS_MAP[normalized] || normalized;
 }
 
+function dateOnly(value = new Date()) {
+  return value.toISOString().slice(0, 10);
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isPackageProduct(productId, productName) {
+  const id = normalizeText(productId);
+  const name = normalizeText(productName);
+  if (!id && !name) return false;
+
+  const exactSet = new Set(["packet", "paket", "package"]);
+  if (exactSet.has(id) || exactSet.has(name)) return true;
+
+  return (
+    id.includes("packet") ||
+    id.includes("paket") ||
+    id.includes("package") ||
+    name.includes("packet") ||
+    name.includes("paket") ||
+    name.includes("package")
+  );
+}
+
+function parseDateInput(value) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 router.get("/", requireAuth, async (req, res) => {
   const db = getDb();
   const { user_id: userIdQuery, status, start_date: startDate, end_date: endDate } = req.query;
@@ -44,15 +77,31 @@ router.get("/", requireAuth, async (req, res) => {
     const normalized = String(status).toLowerCase();
     query.status = STATUS_MAP[normalized] || normalized;
   }
+  const [orders, packageOrders] = await Promise.all([
+    db.collection("Orders").find(query).toArray(),
+    db.collection("Order_S").find(query).toArray(),
+  ]);
 
-  if (startDate || endDate) {
-    query.order_date = {};
-    if (startDate) query.order_date.$gte = new Date(`${startDate}T00:00:00.000Z`);
-    if (endDate) query.order_date.$lte = new Date(`${endDate}T23:59:59.999Z`);
-  }
+  const fromDate = startDate ? new Date(`${startDate}T00:00:00.000Z`) : null;
+  const toDate = endDate ? new Date(`${endDate}T23:59:59.999Z`) : null;
 
-  const orders = await db.collection("Orders").find(query).sort({ created_at: -1 }).toArray();
-  return res.json({ orders: orders.map(serializeOrder) });
+  const merged = [...orders, ...packageOrders].filter((item) => {
+    if (!fromDate && !toDate) return true;
+
+    const candidate = parseDateInput(item.created_at) || parseDateInput(item.order_date);
+    if (!candidate) return false;
+    if (fromDate && candidate < fromDate) return false;
+    if (toDate && candidate > toDate) return false;
+    return true;
+  });
+
+  merged.sort((left, right) => {
+    const leftDate = parseDateInput(left.created_at) || parseDateInput(left.order_date) || new Date(0);
+    const rightDate = parseDateInput(right.created_at) || parseDateInput(right.order_date) || new Date(0);
+    return rightDate.getTime() - leftDate.getTime();
+  });
+
+  return res.json({ orders: merged.map(serializeOrder) });
 });
 
 router.post("/", requireAuth, async (req, res) => {
@@ -92,6 +141,12 @@ router.post("/", requireAuth, async (req, res) => {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return res.status(400).json({ detail: "location.latitude/longitude gecerli sayi olmali." });
   }
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    return res.status(400).json({ detail: "location.latitude/longitude araligi gecersiz." });
+  }
+
+  const productId = String(input?.request?.product_id || "SU_0");
+  const isPackage = isPackageProduct(productId, productName);
 
   const payload = {
     ...input,
@@ -104,24 +159,41 @@ router.post("/", requireAuth, async (req, res) => {
     ready_time: readyTime,
     due_date: dueDate,
     request: {
-      product_id: String(input?.request?.product_id || "SU_0"),
+      product_id: productId,
       product_name: productName,
       notes: String(input?.request?.notes || ""),
       quantity,
-      demand: Number(input?.request?.demand) > 0 ? Number(input.request.demand) : quantity * 19,
+      demand: Number(input?.request?.demand) > 0
+        ? Number(input.request.demand)
+        : (isPackage ? quantity : quantity * 19),
     },
     status: normalizeStatus(input?.status),
     total_price: totalPrice,
+    service_time: Number(input?.service_time) > 0 ? Number(input.service_time) : 120,
+    priority_level: Number.isFinite(Number(input?.priority_level)) ? Number(input.priority_level) : 0,
+    assigned_vehicle: String(input?.assigned_vehicle || "default_vehicle"),
+    assigned_route_id: String(input?.assigned_route_id || "default_route"),
+    change_log: Array.isArray(input?.change_log) ? input.change_log : [],
   };
 
   const now = new Date();
   payload.created_at = now;
   payload.updated_at = now;
-  payload.order_date = now;
+  payload.order_date = String(input?.order_date || dateOnly(now));
   payload.ready_time = toTimeString(payload.ready_time);
   payload.due_date = toTimeString(payload.due_date);
 
-  const result = await db.collection("Orders").insertOne(payload);
+  const targetCollection = isPackage ? "Order_S" : "Orders";
+  if (isPackage) {
+    const pickupWeight = Number(input?.pickup_weight);
+    payload.pickup_weight = Number.isFinite(pickupWeight) ? pickupWeight : 0;
+    payload.customer_type = String(input?.customer_type || "Delivery");
+    payload.request.pickup_weight = Number.isFinite(Number(input?.request?.pickup_weight))
+      ? Number(input.request.pickup_weight)
+      : payload.pickup_weight;
+  }
+
+  const result = await db.collection(targetCollection).insertOne(payload);
   if (!result.acknowledged) {
     return res.status(400).json({ detail: "Siparis olusturulamadi." });
   }
