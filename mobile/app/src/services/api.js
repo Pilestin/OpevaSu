@@ -46,6 +46,13 @@ export const ordersApi = {
     }),
 };
 
+export const productsApi = {
+  list: ({ token }) =>
+    request("/products", {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+};
+
 export const profileApi = {
   get: ({ token, userId }) =>
     request(`/profile/${encodeURIComponent(userId)}`, {

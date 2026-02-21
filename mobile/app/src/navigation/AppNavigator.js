@@ -2,6 +2,7 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import LoginScreen from "../screens/LoginScreen";
 import OrdersScreen from "../screens/OrdersScreen";
 import CreateOrderScreen from "../screens/CreateOrderScreen";
@@ -20,6 +21,9 @@ export function AuthNavigator() {
 }
 
 export function MainNavigator() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
+
   const iconMap = {
     Orders: "clipboard-list-outline",
     CreateOrder: "plus-circle-outline",
@@ -40,15 +44,15 @@ export function MainNavigator() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
-          height: 66,
+          height: 58 + bottomInset,
           borderTopWidth: 0,
           backgroundColor: colors.surface,
           borderTopLeftRadius: radii.lg,
           borderTopRightRadius: radii.lg,
-          paddingBottom: 8,
+          paddingBottom: bottomInset,
           paddingTop: 8,
-          position: "absolute",
         },
+        tabBarHideOnKeyboard: true,
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "600",
