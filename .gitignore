@@ -60,3 +60,12 @@ uploads/
 
 # Docker
 docker-compose.override.yml
+
+# Mobile (Expo)
+mobile/node_modules/
+mobile/app/node_modules/
+mobile/app/.expo/
+mobile/app/dist/
+mobile/app/.env
+mobile/backend/node_modules/
+mobile/backend/.env

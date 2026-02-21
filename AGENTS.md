@@ -1,36 +1,48 @@
-# OpevaSu - Uygulama Özeti ve Yol Haritası
+# OpevaSu - Uygulama Ozeti ve Yol Haritasi
 
 ## Uygulama Nedir?
-- OpevaSu, Streamlit tabanlı bir sipariş yönetim uygulamasıdır.
-- Kullanıcılar giriş yapar, sipariş oluşturur ve siparişlerini takip eder.
-- Yönetici (admin) tarafında kullanıcı ve sipariş görüntüleme/yönetim akışları bulunur.
-- Veri katmanı MongoDB ile çalışır.
+- OpevaSu, Streamlit tabanli bir siparis yonetim uygulamasidir.
+- Kullanicilar giris yapar, siparis olusturur ve siparislerini takip eder.
+- Yonetici (admin) tarafinda kullanici ve siparis goruntuleme/yonetim akislar bulunur.
+- Veri katmani MongoDB ile calisir.
 
 ## Hedef
-Mevcut Streamlit uygulamasını koruyarak, Expo (React Native) ile hızlı geliştirilebilir bir mobil istemci eklemek.
+Mevcut Streamlit uygulamasini koruyarak, Expo (React Native) ile hizli gelistirilebilir bir mobil istemci eklemek.
 
-## Adım Adım Yol Haritası
-- [ ] **Keşif ve kapsam netleştirme**
-  - [ ] Mevcut Streamlit akışlarını (login, dashboard, orders, profile, admin) netleştir
-  - [ ] Mobil MVP kapsamını belirle: kullanıcı tarafında sipariş girme + sipariş takip
-- [ ] **API katmanı oluşturma (Streamlit korunarak)**
-  - [ ] Mevcut iş kurallarını servis katmanına taşı
-  - [ ] Mobilin kullanacağı REST endpoint’lerini ekle (auth, orders, profile)
-  - [ ] Basit token tabanlı kimlik doğrulama uygula
-- [ ] **Expo mobil uygulama iskeleti**
-  - [ ] Expo projesini oluştur
-  - [ ] Navigasyon yapısını kur (Auth, Siparişler, Profil)
-  - [ ] Ortam değişkenleri ve API istemcisini ayarla
-- [ ] **Kullanıcı sipariş akışları (MVP)**
-  - [ ] Giriş ekranı
-  - [ ] Sipariş oluşturma ekranı
-  - [ ] Sipariş listesi/durum takip ekranı
-- [ ] **Ortak doğrulama ve kalite**
-  - [ ] Streamlit tarafında regresyon kontrolü
-  - [ ] Mobilde temel hata/boş durum yönetimi
-  - [ ] Dokümantasyon güncellemesi (çalıştırma adımları + mimari)
+## Adim Adim Yol Haritasi (Guncel Durum)
+- [x] **Kesif ve kapsam netlestirme**
+  - [x] Mevcut Streamlit akislarini (login, dashboard, orders, profile, admin) netlestir
+  - [x] Mobil MVP kapsamini belirle: kullanici tarafinda siparis girme + siparis takip
+- [x] **API katmani olusturma (Streamlit korunarak)**
+  - [x] Mobilin kullanacagi REST endpoint'lerini ekle (Node backend: auth, orders, profile)
+  - [x] Basit token tabanli kimlik dogrulama uygula
+- [x] **Expo mobil uygulama iskeleti**
+  - [x] Expo projesini olustur
+  - [x] Navigasyon yapisini kur (Auth, Siparisler, Profil)
+  - [x] Ortam degiskenleri ve API istemcisini ayarla
+- [x] **Kullanici siparis akislar (MVP)**
+  - [x] Giris ekrani
+  - [x] Siparis olusturma ekrani
+  - [x] Siparis listesi/durum takip ekrani
+- [ ] **Ortak dogrulama ve kalite**
+  - [x] Mobilde temel hata/bos durum yonetimi
+  - [x] Dokumantasyon guncellemesi (calistirma adimlari + ortam degiskenleri)
+  - [x] Mimari dokuman
+  - [x] Kapsamli smoke checklist dokumani
+  - [x] Mobile backend smoke checklist calistirma ve sonuclari
+  - [ ] Streamlit ve mobile uygulama smoke checklist calistirma ve sonuclari
 
-## Mimari Yaklaşım (Kısa)
-- Streamlit: Web arayüzü olarak aynen devam eder.
-- Backend mantığı: Ortak servis/endpoint yapısına taşınır.
-- Expo mobil: Aynı backend’e bağlanan ikinci istemci olur.
+## Mimari Yaklasim (Kisa)
+- Streamlit: Web arayuzu olarak aynen devam eder.
+- Mobil backend: Node.js + Express + MongoDB (`mobile/backend/`) olarak ayridir.
+- Expo mobil: Python yerine sadece Node backend'e baglanir.
+
+# SKILL - OpevaSu Gelistirme Yetkinlikleri
+
+SKILL dokumantasyonu yon bazli olarak `.agent/` klasoru altina bolunmustur:
+
+- `.agent/product/SKILL.md`
+- `.agent/frontend/SKILL.md`
+- `.agent/backend/SKILL.md`
+- `.agent/mobile/SKILL.md`
+- `.agent/quality/SKILL.md`

@@ -1,72 +1,72 @@
-# MongoDB Tabanlı Sipariş Yönetim Uygulaması
+﻿# MongoDB TabanlÄ± SipariÅŸ YÃ¶netim UygulamasÄ±
 
-Bu uygulama, MongoDB veritabanı kullanarak kimlik doğrulama ve sipariş yönetimi işlemlerini gerçekleştiren bir Streamlit web uygulamasıdır.
+Bu uygulama, MongoDB veritabanÄ± kullanarak kimlik doÄŸrulama ve sipariÅŸ yÃ¶netimi iÅŸlemlerini gerÃ§ekleÅŸtiren bir Streamlit web uygulamasÄ±dÄ±r.
 
-## Özellikler
+## Ã–zellikler
 
-- Kullanıcı kimlik doğrulama (MongoDB users koleksiyonu ile)
-- Sipariş oluşturma ve kaydetme
-- Tarih ve saat seçimi
+- KullanÄ±cÄ± kimlik doÄŸrulama (MongoDB users koleksiyonu ile)
+- SipariÅŸ oluÅŸturma ve kaydetme
+- Tarih ve saat seÃ§imi
 
 ## Kurulum
 
-1. Gerekli kütüphaneleri yükleyin:
+1. Gerekli kÃ¼tÃ¼phaneleri yÃ¼kleyin:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-2. MongoDB'nin kurulu ve çalışıyor olduğundan emin olun.
+2. MongoDB'nin kurulu ve Ã§alÄ±ÅŸÄ±yor olduÄŸundan emin olun.
 
-3. Örnek veritabanını kurun:
+3. Ã–rnek veritabanÄ±nÄ± kurun:
 
 ```bash
 python setup_db.py
 ```
 
-4. Uygulamayı çalıştırın:
+4. UygulamayÄ± Ã§alÄ±ÅŸtÄ±rÄ±n:
 
 ```bash
 streamlit run app.py
 ```
 
-## Kullanım
+## KullanÄ±m
 
-- Giriş sayfasında kullanıcı ID'nizi girin (örn. "user1", "user2" veya "admin")
-- Şifre alanına "123" yazın
-- Giriş yaptıktan sonra sipariş adetini ve tarih/saati seçerek yeni sipariş oluşturabilirsiniz
+- GiriÅŸ sayfasÄ±nda kullanÄ±cÄ± ID'nizi girin (Ã¶rn. "user1", "user2" veya "admin")
+- Åifre alanÄ±na "123" yazÄ±n
+- GiriÅŸ yaptÄ±ktan sonra sipariÅŸ adetini ve tarih/saati seÃ§erek yeni sipariÅŸ oluÅŸturabilirsiniz
 
-## Veritabanı Yapısı
+## VeritabanÄ± YapÄ±sÄ±
 
-- **users**: Kullanıcı bilgilerini içeren koleksiyon
-- **orders**: Sipariş bilgilerini içeren koleksiyon
+- **users**: KullanÄ±cÄ± bilgilerini iÃ§eren koleksiyon
+- **orders**: SipariÅŸ bilgilerini iÃ§eren koleksiyon
 
-## Geliştirme Notları
+## GeliÅŸtirme NotlarÄ±
 
-- Bu uygulama demonstrasyon amaçlıdır ve gerçek ortamda kullanılmadan önce güvenlik iyileştirmeleri yapılmalıdır
-- Şifre doğrulaması şu anda basit bir kontrol ile yapılmaktadır, gerçek uygulamalarda hash ve tuz kullanılmalıdır
+- Bu uygulama demonstrasyon amaÃ§lÄ±dÄ±r ve gerÃ§ek ortamda kullanÄ±lmadan Ã¶nce gÃ¼venlik iyileÅŸtirmeleri yapÄ±lmalÄ±dÄ±r
+- Åifre doÄŸrulamasÄ± ÅŸu anda basit bir kontrol ile yapÄ±lmaktadÄ±r, gerÃ§ek uygulamalarda hash ve tuz kullanÄ±lmalÄ±dÄ±r
 
-## Uygulama Görselleri 
+## Uygulama GÃ¶rselleri 
 
 
-<h2>Uygulama Görselleri</h2>
+<h2>Uygulama GÃ¶rselleri</h2>
 
 <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: start;">
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots_v2/Screenshot_1.png" alt="Giriş Sayfası" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">Giriş Sayfası</p>
+    <img src="assets/screenshots_v2/Screenshot_1.png" alt="GiriÅŸ SayfasÄ±" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">GiriÅŸ SayfasÄ±</p>
   </div>
   <div style="flex: 0 0 48%;">
     <img src="assets/screenshots_v2/Screenshot_2.png" alt="Ana Sayfa" style="width: 100%;">
     <p style="text-align:center; font-size:14px;">Ana Sayfa</p>
   </div>
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots_v2/Screenshot_3.png" alt="Sipariş Oluşturma" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">Sipariş Oluşturma</p>
+    <img src="assets/screenshots_v2/Screenshot_3.png" alt="SipariÅŸ OluÅŸturma" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">SipariÅŸ OluÅŸturma</p>
   </div>
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots_v2/Screenshot_5.png" alt="Sipariş Oluşturma 2" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">Sipariş Oluşturma 2</p>
+    <img src="assets/screenshots_v2/Screenshot_5.png" alt="SipariÅŸ OluÅŸturma 2" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">SipariÅŸ OluÅŸturma 2</p>
   </div>
   <div style="flex: 0 0 48%;">
     <img src="assets/screenshots_v2/Screenshot_6.png" alt="Profil Bilgileri" style="width: 100%;">
@@ -74,24 +74,45 @@ streamlit run app.py
   </div>
 </div>
 
-<h3>Admin Sayfaları</h3>
+<h3>Admin SayfalarÄ±</h3>
 
 <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: start;">
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots_v2/admin_1.png" alt="Admin Sayfası" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">Admin Sayfası</p>
+    <img src="assets/screenshots_v2/admin_1.png" alt="Admin SayfasÄ±" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">Admin SayfasÄ±</p>
   </div>
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots_v2/admin_2.png" alt="Admin - Kullanıcı Listesi" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">Kullanıcı Listesi</p>
+    <img src="assets/screenshots_v2/admin_2.png" alt="Admin - KullanÄ±cÄ± Listesi" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">KullanÄ±cÄ± Listesi</p>
   </div>
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots/Screenshot_6.png" alt="Admin - Sipariş Listesi" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">Sipariş Listesi</p>
+    <img src="assets/screenshots/Screenshot_6.png" alt="Admin - SipariÅŸ Listesi" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">SipariÅŸ Listesi</p>
   </div>
 </div>
 
 
 
-## Katkıda Bulunanlar
+## KatkÄ±da Bulunanlar
 
+
+
+
+
+## Mobile Backend (Node.js)
+
+Mobil istemci Python API yerine `mobile/backend/` servisine baglanir.
+
+Ortam degiskenleri (`mobile/backend/.env`):
+- `MONGODB_URI`
+- `MONGO_DB_NAME`
+- `JWT_SECRET`
+- `JWT_EXPIRES_IN`
+
+Calistirma:
+- cd mobile/backend
+- npm install
+- npm run dev
+
+Mobil app (`mobile/app/.env`):
+- `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001`
