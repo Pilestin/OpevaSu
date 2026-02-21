@@ -15,9 +15,9 @@ st.set_page_config(
 
 def generate_order_id():
     """Benzersiz sipariş ID'si oluşturur"""
-    timestamp = datetime.datetime.now().strftime("%Y%m%d")
-    sequence = "001"  # Bu sayı veritabanından alınabilir
-    return f"order_{timestamp}_{sequence}"
+    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    random_part = uuid.uuid4().hex[:6]
+    return f"order_{timestamp}_{random_part}"
 
 def generate_task_id():
     """Benzersiz görev ID'si oluşturur"""

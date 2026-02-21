@@ -9,12 +9,13 @@ NAV_OPTIONS = {
 
 def get_nav_options(user):
     """Kullanıcı rolüne göre navigasyon menüsünü döndürür."""
-    
+    options = dict(NAV_OPTIONS)
+
     # Admin için ek menü
     if user.get("role") == "admin":
-        NAV_OPTIONS["admin"] = "⚙️ Admin Paneli"
-    
-    return NAV_OPTIONS
+        options["admin"] = "⚙️ Admin Paneli"
+
+    return options
 
 def initialize_navigation():
     """

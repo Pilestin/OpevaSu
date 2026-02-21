@@ -208,7 +208,7 @@ def admin_page(css_file):
                     "order_date": now,
                     "ready_time": ready_time.strftime("%H:%M"),
                     "due_date": due_time.strftime("%H:%M"),
-                    "service_time": str(service_time),
+                    "service_time": int(service_time),
                     "request": {
                         "product_id": product["product_id"],
                         "product_name": product["name"],
