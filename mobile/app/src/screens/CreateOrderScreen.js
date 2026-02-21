@@ -49,6 +49,7 @@ function toMinutes(value) {
 
 export default function CreateOrderScreen() {
   const { token, user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [selectedProductId, setSelectedProductId] = useState(null);
@@ -83,14 +84,14 @@ export default function CreateOrderScreen() {
       }
     };
 
-    if (token) {
+    if (token && !isAdmin) {
       loadProducts();
     }
 
     return () => {
       mounted = false;
     };
-  }, [token]);
+  }, [token, isAdmin]);
 
   const selectedProduct = useMemo(
     () => products.find((item) => item.product_id === selectedProductId) || null,
@@ -102,6 +103,11 @@ export default function CreateOrderScreen() {
   const totalPrice = (Number(quantity || 0) * unitPrice).toFixed(2);
 
   const onSubmit = async () => {
+    if (isAdmin) {
+      Alert.alert("Yetki yok", "Admin kullanici siparis olusturamaz.");
+      return;
+    }
+
     const cleanAddress = String(address || "").trim();
     const cleanReadyTime = String(readyTime || "").trim();
     const cleanDueTime = String(dueTime || "").trim();
@@ -191,6 +197,11 @@ export default function CreateOrderScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+      {isAdmin ? (
+        <View style={styles.adminBlock}>
+          <Text style={styles.adminBlockText}>Admin kullanici yeni siparis olusturamaz.</Text>
+        </View>
+      ) : null}
       <Text style={styles.title}>Yeni Siparis</Text>
       <Text style={styles.subtitle}>Urunu sec, miktari gir, siparisi aninda olustur.</Text>
 
@@ -277,7 +288,11 @@ export default function CreateOrderScreen() {
         <Text style={styles.summaryPrice}>{`${totalPrice} TL`}</Text>
       </View>
 
-      <Pressable style={[styles.button, submitting && styles.buttonDisabled]} onPress={onSubmit} disabled={submitting}>
+      <Pressable
+        style={[styles.button, (submitting || isAdmin) && styles.buttonDisabled]}
+        onPress={onSubmit}
+        disabled={submitting || isAdmin}
+      >
         <Text style={styles.buttonText}>{submitting ? "Kaydediliyor..." : "Siparis Ver"}</Text>
       </Pressable>
 
@@ -461,6 +476,18 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "800",
     letterSpacing: 0.3,
+  },
+  adminBlock: {
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    backgroundColor: "#fef2f2",
+    borderRadius: radii.md,
+    padding: 12,
+    marginBottom: 10,
+  },
+  adminBlockText: {
+    color: "#b91c1c",
+    fontWeight: "700",
   },
   modalOverlay: {
     flex: 1,

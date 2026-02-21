@@ -12,7 +12,6 @@ const PACKAGE_ORDER_COLLECTION = "Orders_S";
 const STATUS_MAP = {
   bekliyor: "waiting",
   hazirlaniyor: "processing",
-  "hazÄ±rlanÄ±yor": "processing",
   yolda: "shipping",
   "teslim edildi": "completed",
   "iptal edildi": "cancelled",
@@ -62,6 +61,15 @@ function parseDateInput(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function resolveCollections(collectionParam) {
+  const normalized = normalizeText(collectionParam);
+  if (normalized === "orders") return [ORDER_COLLECTION];
+  if (normalized === "orders_s" || normalized === "package" || normalized === "packages") {
+    return [PACKAGE_ORDER_COLLECTION];
+  }
+  return [ORDER_COLLECTION, PACKAGE_ORDER_COLLECTION];
+}
+
 function canAccessOrder(user, order) {
   if (!user || !order) return false;
   if (user.role === "admin") return true;
@@ -102,32 +110,48 @@ function validateTimes(readyTime, dueDate) {
 
 router.get("/", requireAuth, async (req, res) => {
   const db = getDb();
-  const { user_id: userIdQuery, status, start_date: startDate, end_date: endDate } = req.query;
+  const {
+    user_id: userIdQuery,
+    status,
+    start_date: startDate,
+    end_date: endDate,
+    collection: collectionParam,
+  } = req.query;
 
-  let targetUserId = req.user.user_id;
-  if (userIdQuery) {
-    if (req.user.role === "admin") {
-      targetUserId = String(userIdQuery);
-    } else if (String(userIdQuery) !== String(req.user.user_id)) {
+  const query = {};
+  if (req.user.role === "admin") {
+    if (userIdQuery) {
+      query.customer_id = String(userIdQuery);
+    }
+  } else {
+    query.customer_id = req.user.user_id;
+    if (userIdQuery && String(userIdQuery) !== String(req.user.user_id)) {
       return res.status(403).json({ detail: "Sadece kendi siparislerinizi gorebilirsiniz." });
     }
   }
 
-  const query = { customer_id: targetUserId };
   if (status) {
     const normalized = String(status).toLowerCase();
     query.status = STATUS_MAP[normalized] || normalized;
   }
 
+  const collections = resolveCollections(collectionParam);
   const [orders, packageOrders] = await Promise.all([
-    db.collection(ORDER_COLLECTION).find(query).toArray(),
-    db.collection(PACKAGE_ORDER_COLLECTION).find(query).toArray(),
+    collections.includes(ORDER_COLLECTION)
+      ? db.collection(ORDER_COLLECTION).find(query).toArray()
+      : Promise.resolve([]),
+    collections.includes(PACKAGE_ORDER_COLLECTION)
+      ? db.collection(PACKAGE_ORDER_COLLECTION).find(query).toArray()
+      : Promise.resolve([]),
   ]);
 
   const fromDate = startDate ? new Date(`${startDate}T00:00:00.000Z`) : null;
   const toDate = endDate ? new Date(`${endDate}T23:59:59.999Z`) : null;
 
-  const merged = [...orders, ...packageOrders].filter((item) => {
+  const merged = [
+    ...orders.map((item) => ({ ...item, source_collection: ORDER_COLLECTION })),
+    ...packageOrders.map((item) => ({ ...item, source_collection: PACKAGE_ORDER_COLLECTION })),
+  ].filter((item) => {
     if (!fromDate && !toDate) return true;
     const candidate = parseDateInput(item.created_at) || parseDateInput(item.order_date);
     if (!candidate) return false;
@@ -146,6 +170,10 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 router.post("/", requireAuth, async (req, res) => {
+  if (req.user.role === "admin") {
+    return res.status(403).json({ detail: "Admin kullanici yeni siparis olusturamaz." });
+  }
+
   const db = getDb();
   const input = req.body && req.body.order;
   if (!input || typeof input !== "object") {
@@ -183,7 +211,7 @@ router.post("/", requireAuth, async (req, res) => {
 
   const payload = {
     ...input,
-    customer_id: req.user.role === "admin" ? String(input.customer_id || req.user.user_id) : req.user.user_id,
+    customer_id: req.user.user_id,
     order_id: orderId,
     task_id: taskId,
     location: {

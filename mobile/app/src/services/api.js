@@ -29,8 +29,12 @@ export const authApi = {
 };
 
 export const ordersApi = {
-  list: ({ token, status }) => {
-    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  list: ({ token, status, collection, userId }) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (collection) params.set("collection", collection);
+    if (userId) params.set("user_id", userId);
+    const query = params.toString() ? `?${params.toString()}` : "";
     return request(`/orders${query}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -63,6 +67,13 @@ export const ordersApi = {
 export const productsApi = {
   list: ({ token }) =>
     request("/products", {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+};
+
+export const usersApi = {
+  list: ({ token }) =>
+    request("/users", {
       headers: { Authorization: `Bearer ${token}` },
     }),
 };

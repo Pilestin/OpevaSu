@@ -39,9 +39,15 @@ npm run dev
 - `POST /orders`
 - `PUT /orders/:orderId`
 - `DELETE /orders/:orderId`
+- `GET /users`
 - `GET /profile/:userId`
 - `PUT /profile/:userId`
 
 `POST /orders` davranisi:
 - `Packet/Paket/Package` urunleri `Orders_S` koleksiyonuna yazilir.
 - Diger urunler `Orders` koleksiyonuna yazilir.
+- Admin kullanici siparis olusturamaz.
+
+`GET /orders` (admin) davranisi:
+- `collection=orders` -> sadece `Orders`
+- `collection=orders_s` -> sadece `Orders_S`

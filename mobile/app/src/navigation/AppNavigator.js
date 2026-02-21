@@ -3,10 +3,12 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "../context/AuthContext";
 import LoginScreen from "../screens/LoginScreen.js";
 import OrdersScreen from "../screens/OrdersScreen.js";
 import CreateOrderScreen from "../screens/CreateOrderScreen.js";
 import ProfileScreen from "../screens/ProfileScreen.js";
+import UsersScreen from "../screens/UsersScreen.js";
 import { colors, radii } from "../theme";
 
 const AuthStack = createNativeStackNavigator();
@@ -23,11 +25,14 @@ export function AuthNavigator() {
 export function MainNavigator() {
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 8);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const iconMap = {
     Orders: "clipboard-list-outline",
     CreateOrder: "plus-circle-outline",
     Profile: "account-circle-outline",
+    Users: "account-group-outline",
   };
 
   return (
@@ -67,7 +72,11 @@ export function MainNavigator() {
       })}
     >
       <Tab.Screen name="Orders" component={OrdersScreen} options={{ title: "Siparislerim" }} />
-      <Tab.Screen name="CreateOrder" component={CreateOrderScreen} options={{ title: "Yeni Siparis" }} />
+      {isAdmin ? (
+        <Tab.Screen name="Users" component={UsersScreen} options={{ title: "Kullanicilar" }} />
+      ) : (
+        <Tab.Screen name="CreateOrder" component={CreateOrderScreen} options={{ title: "Yeni Siparis" }} />
+      )}
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: "Profil" }} />
     </Tab.Navigator>
   );

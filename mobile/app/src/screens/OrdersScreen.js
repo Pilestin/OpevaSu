@@ -40,6 +40,11 @@ const FILTERS = [
   { key: "completed", label: "Tamamlanan" },
 ];
 
+const ADMIN_COLLECTION_FILTERS = [
+  { key: "orders", label: "Orders" },
+  { key: "orders_s", label: "Orders_S" },
+];
+
 const EDIT_STATUSES = ["waiting", "completed", "cancelled"];
 
 function toMinutes(value) {
@@ -48,11 +53,14 @@ function toMinutes(value) {
 }
 
 export default function OrdersScreen() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState(null);
+  const [collectionFilter, setCollectionFilter] = useState("orders");
 
   const [editingOrder, setEditingOrder] = useState(null);
   const [editAddress, setEditAddress] = useState("");
@@ -63,13 +71,23 @@ export default function OrdersScreen() {
   const [editStatus, setEditStatus] = useState("waiting");
   const [savingEdit, setSavingEdit] = useState(false);
 
+  useEffect(() => {
+    if (!isAdmin) {
+      setCollectionFilter("orders");
+    }
+  }, [isAdmin]);
+
   const loadOrders = useCallback(
     async (isRefresh = false) => {
       try {
         if (isRefresh) setRefreshing(true);
         else setLoading(true);
 
-        const response = await ordersApi.list({ token, status: statusFilter });
+        const response = await ordersApi.list({
+          token,
+          status: statusFilter,
+          collection: isAdmin ? collectionFilter : null,
+        });
         setOrders(response.orders || []);
       } catch (error) {
         Alert.alert("Siparisler yuklenemedi", error.message);
@@ -78,7 +96,7 @@ export default function OrdersScreen() {
         setRefreshing(false);
       }
     },
-    [token, statusFilter]
+    [token, statusFilter, isAdmin, collectionFilter]
   );
 
   useEffect(() => {
@@ -210,6 +228,10 @@ export default function OrdersScreen() {
           </View>
         </View>
 
+        {isAdmin && item.source_collection ? (
+          <Text style={styles.sourceText}>{item.source_collection}</Text>
+        ) : null}
+
         <Text style={styles.row}>
           <Text style={styles.rowLabel}>Urun:</Text> {request.product_name || "Su"}
         </Text>
@@ -244,9 +266,26 @@ export default function OrdersScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Siparislerim</Text>
+        <Text style={styles.title}>Siparisler</Text>
         <Text style={styles.subtitle}>{orders.length} kayit</Text>
       </View>
+
+      {isAdmin ? (
+        <View style={styles.filters}>
+          {ADMIN_COLLECTION_FILTERS.map((filter) => {
+            const active = collectionFilter === filter.key;
+            return (
+              <Pressable
+                key={filter.key}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setCollectionFilter(filter.key)}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{filter.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
 
       <View style={styles.filters}>
         {FILTERS.map((filter) => {
@@ -347,7 +386,11 @@ export default function OrdersScreen() {
               <Pressable style={styles.cancelButton} onPress={closeEditModal} disabled={savingEdit}>
                 <Text style={styles.cancelText}>Vazgec</Text>
               </Pressable>
-              <Pressable style={[styles.saveButton, savingEdit && styles.saveButtonDisabled]} onPress={onSaveEdit} disabled={savingEdit}>
+              <Pressable
+                style={[styles.saveButton, savingEdit && styles.saveButtonDisabled]}
+                onPress={onSaveEdit}
+                disabled={savingEdit}
+              >
                 <Text style={styles.saveText}>{savingEdit ? "Kaydediliyor..." : "Kaydet"}</Text>
               </Pressable>
             </View>
@@ -436,6 +479,12 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 12,
     fontWeight: "700",
+  },
+  sourceText: {
+    marginBottom: 8,
+    color: colors.primary,
+    fontWeight: "700",
+    fontSize: 12,
   },
   row: {
     color: colors.text,
