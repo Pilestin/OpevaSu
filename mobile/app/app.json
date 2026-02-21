@@ -13,7 +13,8 @@
     },
     "android": {
       "package": "com.opevasu.mobile",
-      "versionCode": 1
+      "versionCode": 1,
+      "usesCleartextTraffic": true
     },
     "web": {
       "bundler": "metro"
