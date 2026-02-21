@@ -1,0 +1,15 @@
+{
+  "name": "opevasu-mobile-stack",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "install:all": "npm install --prefix app && npm install --prefix backend",
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run start --prefix app\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:app": "npm run start --prefix app"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
+
