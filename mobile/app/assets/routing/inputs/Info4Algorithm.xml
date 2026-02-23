@@ -1,0 +1,95 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Input>
+    <Algorithm name="ALNS">
+        <Parameters>
+            <Parameter name="maxIterations" type="int">800</Parameter>
+            <Parameter name="cooling_rate" type="float">0.99950</Parameter>
+            <Parameter name="initial_temperature" type="int">10000</Parameter>
+            <Parameter name="N" type="int">4</Parameter>
+            <Parameter name="K" type="int">15</Parameter>
+            <Parameter name="Z" type="int">8</Parameter>
+        </Parameters>
+    </Algorithm>
+    <Algorithm name="SA">
+        <Parameters>
+            <Parameter name="initial_temperature" type="float">1000</Parameter>
+            <Parameter name="cooling_rate" type="float">0.003</Parameter>
+            <Parameter name="max_iteration" type="int">1000</Parameter>
+            <Parameter name="folder_path" type="string">/path/to/file</Parameter>
+            <Parameter name="output_excel_path" type="string">/path/to/output/excel</Parameter>
+            <Parameter name="tank_capacity" type="int">7200</Parameter>
+            <Parameter name="load_capacity" type="int">200</Parameter>
+            <Parameter name="fuel_consumption_rate" type="float">1.0</Parameter>
+            <Parameter name="charging_rate" type="float">0.18</Parameter>
+            <Parameter name="velocity" type="float">12.5</Parameter>
+        </Parameters>
+    </Algorithm>
+    <Algorithm name="DDQN">
+        <Parameters>
+            <Parameter name="gamma" type="float">0.95</Parameter>
+            <Parameter name="epsilon" type="float">1.0</Parameter>
+            <Parameter name="epsilon_decay" type="float">0.9999</Parameter>
+            <Parameter name="learning_rate" type="float">0.0001</Parameter>
+            <Parameter name="memory_size" type="int">20000</Parameter>
+            <Parameter name="batch_size" type="int">128</Parameter>
+            <Parameter name="degree_of_dynamism" type="float">0.2</Parameter>
+        </Parameters>
+    </Algorithm>
+    <Algorithm name="DQNPD">
+        <Parameters>
+            <Parameter name="alpha" type="float">0.0001</Parameter>
+            <Parameter name="gama" type="float">0.99</Parameter>
+            <Parameter name="initial_epsilon" type="float">1.0</Parameter>
+            <Parameter name="min_epsilon" type="float">0.01</Parameter>
+            <Parameter name="epsilon_decay" type="float">1e-4</Parameter>
+            <Parameter name="max_iteration" type="int">2000</Parameter>
+            <Parameter name="tank_capacity" type="int">3000</Parameter>
+            <Parameter name="load_capacity" type="int">350</Parameter>
+            <Parameter name="fuel_consumption_rate" type="float">1.0</Parameter>
+            <Parameter name="charging_rate" type="float">0.18</Parameter>
+            <Parameter name="velocity" type="float">12.5</Parameter>
+            <Parameter name="vehicle_mass" type="int">1000</Parameter>
+            <Parameter name="max_load_volume" type="int">0</Parameter>
+            <Parameter name="batch_size" type="int">32</Parameter>
+            <Parameter name="memory_capacity" type="int">0</Parameter>
+            <Parameter name="copy_weight_interval" type="int">100</Parameter>
+        </Parameters>
+    </Algorithm>
+    <Algorithm name="DQN">
+        <Parameters>
+            <Parameter name="alpha" type="float">0.0001</Parameter>
+            <Parameter name="gama" type="float">0.99</Parameter>
+            <Parameter name="initial_epsilon" type="float">1.0</Parameter>
+            <Parameter name="min_epsilon" type="float">0.01</Parameter>
+            <Parameter name="epsilon_decay" type="float">1e-4</Parameter>
+            <Parameter name="max_iteration" type="int">2000</Parameter>
+            <Parameter name="tank_capacity" type="int">3000</Parameter>
+            <Parameter name="load_capacity" type="int">350</Parameter>
+            <Parameter name="fuel_consumption_rate" type="float">1.0</Parameter>
+            <Parameter name="charging_rate" type="float">0.18</Parameter>
+            <Parameter name="velocity" type="float">12.5</Parameter>
+            <Parameter name="vehicle_mass" type="int">1000</Parameter>
+            <Parameter name="max_load_volume" type="int">0</Parameter>
+            <Parameter name="batch_size" type="int">32</Parameter>
+            <Parameter name="memory_capacity" type="int">0</Parameter>
+            <Parameter name="copy_weight_interval" type="int">100</Parameter>
+        </Parameters>
+    </Algorithm>
+    <Algorithm name="qlearning">
+        <Parameters>
+            <Parameter name="alpha" type="float">0.4</Parameter>
+            <Parameter name="gama" type="float">0.6</Parameter>
+            <Parameter name="initial_epsilon" type="float">1.0</Parameter>
+            <Parameter name="min_epsilon" type="float">0.2</Parameter>
+            <Parameter name="epsilon_decay" type="float">0.9999</Parameter>
+            <Parameter name="max_iteration" type="int">2000</Parameter>
+            <Parameter name="tank_capacity" type="int">3000</Parameter>
+            <Parameter name="load_capacity" type="int">350</Parameter>
+            <Parameter name="fuel_consumption_rate" type="float">1.0</Parameter>
+            <Parameter name="charging_rate" type="float">0.18</Parameter>
+            <Parameter name="velocity" type="float">12.5</Parameter>
+            <Parameter name="vehicle_mass" type="int">1000</Parameter>
+            <Parameter name="max_load_volume" type="int">0</Parameter>
+        </Parameters>
+    </Algorithm>
+</Input>

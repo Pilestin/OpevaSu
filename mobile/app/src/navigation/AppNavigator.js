@@ -9,6 +9,7 @@ import OrdersScreen from "../screens/OrdersScreen.js";
 import CreateOrderScreen from "../screens/CreateOrderScreen.js";
 import ProfileScreen from "../screens/ProfileScreen.js";
 import UsersScreen from "../screens/UsersScreen.js";
+import RoutingScreen from "../features/routing/RoutingScreen";
 import { colors, radii } from "../theme";
 
 const AuthStack = createNativeStackNavigator();
@@ -33,6 +34,7 @@ export function MainNavigator() {
     CreateOrder: "plus-circle-outline",
     Profile: "account-circle-outline",
     Users: "account-group-outline",
+    Routing: "map-marker-path",
   };
 
   return (
@@ -77,6 +79,7 @@ export function MainNavigator() {
       ) : (
         <Tab.Screen name="CreateOrder" component={CreateOrderScreen} options={{ title: "Yeni Siparis" }} />
       )}
+      {isAdmin ? <Tab.Screen name="Routing" component={RoutingScreen} options={{ title: "Rotalama" }} /> : null}
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: "Profil" }} />
     </Tab.Navigator>
   );
