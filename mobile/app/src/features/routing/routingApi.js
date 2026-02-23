@@ -1,6 +1,6 @@
 import axios from "axios";
 import { Buffer } from "buffer";
-import { REQUIRED_FILE_NAMES } from "./routingAssets";
+import { OPTIONAL_FILE_NAMES, REQUIRED_FILE_NAMES } from "./routingAssets";
 import { getRoutingEndpoint } from "./routingConfig";
 import { parseRoutingZip } from "./routingZip";
 
@@ -28,6 +28,11 @@ export async function runRoutingOptimization({ algorithm, files, problemFile }) 
 
   REQUIRED_FILE_NAMES.forEach((name) => {
     appendXmlFile(formData, files[name], name);
+  });
+  OPTIONAL_FILE_NAMES.forEach((name) => {
+    if (files[name]) {
+      appendXmlFile(formData, files[name], name);
+    }
   });
   appendXmlFile(formData, problemFile, problemFile.name);
 

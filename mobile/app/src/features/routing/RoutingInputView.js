@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { Asset } from "expo-asset";
 import { colors, radii, shadows } from "../../theme";
 import { runRoutingOptimization } from "./routingApi";
-import { DEFAULT_FILES, PROBLEM_FILES, REQUIRED_FILE_NAMES } from "./routingAssets";
+import { OPTIONAL_FILE_NAMES, PROBLEM_FILES, REQUIRED_FILE_NAMES, STANDARD_FILES } from "./routingAssets";
 import { getAlgorithms } from "./routingConfig";
 
 export default function RoutingInputView({ onOptimizationComplete }) {
@@ -24,28 +24,58 @@ export default function RoutingInputView({ onOptimizationComplete }) {
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [showProblemModal, setShowProblemModal] = useState(false);
+  const bundledFileCache = useRef({});
 
   const availableProblems = useMemo(() => Object.keys(PROBLEM_FILES), []);
   const algorithms = useMemo(() => getAlgorithms(), []);
 
+  const resolveBundledFile = async (filename) => {
+    if (bundledFileCache.current[filename]) {
+      return bundledFileCache.current[filename];
+    }
+
+    const asset = Asset.fromModule(STANDARD_FILES[filename]);
+    if (!asset.localUri) {
+      await asset.downloadAsync();
+    }
+    const resolved = {
+      uri: asset.localUri || asset.uri,
+      name: filename,
+      type: "text/xml",
+      isAsset: true,
+    };
+    bundledFileCache.current[filename] = resolved;
+    return resolved;
+  };
+
   const loadDefaults = async () => {
     setLoading(true);
-    setStatusText("Standart dosyalar yukleniyor...");
+    setStatusText("Zorunlu dosyalar yukleniyor...");
     try {
       const loadedFiles = {};
       for (const filename of REQUIRED_FILE_NAMES) {
-        const asset = Asset.fromModule(DEFAULT_FILES[filename]);
-        await asset.downloadAsync();
-        loadedFiles[filename] = {
-          uri: asset.localUri || asset.uri,
-          name: filename,
-          type: "text/xml",
-          isAsset: true,
-        };
+        loadedFiles[filename] = await resolveBundledFile(filename);
       }
-      setFiles(loadedFiles);
+      setFiles((prev) => ({ ...prev, ...loadedFiles }));
     } catch (error) {
       Alert.alert("Dosya Hatasi", `Standart dosyalar yuklenemedi: ${error.message}`);
+    } finally {
+      setLoading(false);
+      setStatusText("");
+    }
+  };
+
+  const loadOptionalDefaults = async () => {
+    setLoading(true);
+    setStatusText("Opsiyonel dosyalar yukleniyor...");
+    try {
+      const loadedFiles = {};
+      for (const filename of OPTIONAL_FILE_NAMES) {
+        loadedFiles[filename] = await resolveBundledFile(filename);
+      }
+      setFiles((prev) => ({ ...prev, ...loadedFiles }));
+    } catch (error) {
+      Alert.alert("Dosya Hatasi", `Opsiyonel dosyalar yuklenemedi: ${error.message}`);
     } finally {
       setLoading(false);
       setStatusText("");
@@ -110,7 +140,10 @@ export default function RoutingInputView({ onOptimizationComplete }) {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>1) Standart Konfigurasyon</Text>
           <Pressable style={styles.buttonSecondary} onPress={loadDefaults} disabled={loading}>
-            <Text style={styles.buttonSecondaryText}>Standart Dosyalari Yukle</Text>
+            <Text style={styles.buttonSecondaryText}>Zorunlu Dosyalari Yukle (Hizli)</Text>
+          </Pressable>
+          <Pressable style={styles.buttonSecondaryMuted} onPress={loadOptionalDefaults} disabled={loading}>
+            <Text style={styles.buttonSecondaryMutedText}>Opsiyonel Environment Dosyalarini Yukle</Text>
           </Pressable>
         </View>
 
@@ -141,6 +174,21 @@ export default function RoutingInputView({ onOptimizationComplete }) {
               onPress={() => pickFile(name)}
             >
               <Text style={styles.fileText}>{files[name] ? `Yuklendi: ${files[name].name}` : `Sec: ${name}`}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>3.1) Opsiyonel XML Dosyalari</Text>
+          {OPTIONAL_FILE_NAMES.map((name) => (
+            <Pressable
+              key={name}
+              style={[styles.fileButton, files[name] && styles.fileButtonSelected]}
+              onPress={() => pickFile(name)}
+            >
+              <Text style={styles.fileText}>
+                {files[name] ? `Yuklendi (opsiyonel): ${files[name].name}` : `Opsiyonel sec: ${name}`}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -274,6 +322,17 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   buttonSecondaryText: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  buttonSecondaryMuted: {
+    marginTop: 8,
+    backgroundColor: "#334155",
+    borderRadius: radii.sm,
+    alignItems: "center",
+    paddingVertical: 11,
+  },
+  buttonSecondaryMutedText: {
     color: "#ffffff",
     fontWeight: "700",
   },

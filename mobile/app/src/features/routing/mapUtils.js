@@ -1,12 +1,31 @@
 export const MapUtils = {
+  getPointTypeIcon(type) {
+    switch (type) {
+      case "depot":
+      case "start":
+      case "end":
+        return "warehouse";
+      case "delivery":
+        return "account-circle";
+      case "charging":
+        return "ev-station";
+      case "station":
+        return "gas-station";
+      default:
+        return "map-marker";
+    }
+  },
+
   getPointTypeLabel(type) {
     switch (type) {
       case "start":
         return "S";
       case "end":
         return "E";
-      case "charging":
+      case "delivery":
         return "C";
+      case "charging":
+        return "CH";
       case "depot":
         return "D";
       case "station":
@@ -19,6 +38,8 @@ export const MapUtils = {
   getPointTypeColor(type) {
     switch (type) {
       case "depot":
+      case "start":
+      case "end":
         return "#8e44ad";
       case "station":
         return "#f39c12";
@@ -26,10 +47,6 @@ export const MapUtils = {
         return "#2ecc71";
       case "delivery":
         return "#3498db";
-      case "start":
-        return "#16a34a";
-      case "end":
-        return "#dc2626";
       default:
         return "#3498db";
     }
@@ -46,7 +63,7 @@ export const MapUtils = {
   },
 
   formatVisitTime(visitTime) {
-    if (!visitTime) return "Henüz ziyaret edilmedi";
+    if (!visitTime) return "Henuz ziyaret edilmedi";
     try {
       return String(visitTime).replace("T", " ");
     } catch (error) {

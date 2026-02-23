@@ -63,6 +63,14 @@ npm run dev
 npm run start
 ```
 
+## 3.1) Web'de Acma
+
+```bash
+npm run web
+```
+
+Komut sonrasi terminalde verilen adresten (genelde `http://localhost:8081`) web arayuzunu acabilirsiniz.
+
 ## Ekranlar
 
 - Giris

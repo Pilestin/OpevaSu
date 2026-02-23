@@ -1,12 +1,15 @@
 export const REQUIRED_FILE_NAMES = [
   "Info4Algorithm.xml",
   "Info4ChargingStation.xml",
-  "Info4Environment.xml",
   "Info4Vehicle.xml",
+];
+
+export const OPTIONAL_FILE_NAMES = [
+  "Info4Environment.xml",
   "Map4Environment.xml",
 ];
 
-export const DEFAULT_FILES = {
+export const STANDARD_FILES = {
   "Info4Algorithm.xml": require("../../../assets/routing/inputs/Info4Algorithm.xml"),
   "Info4ChargingStation.xml": require("../../../assets/routing/inputs/Info4ChargingStation.xml"),
   "Info4Environment.xml": require("../../../assets/routing/inputs/Info4Environment.xml"),
