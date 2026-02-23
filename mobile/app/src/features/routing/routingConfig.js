@@ -1,10 +1,31 @@
-const RAW_ENDPOINTS = {
-  ALNS: process.env.EXPO_PUBLIC_ROUTING_ALNS_URL,
-  SA: process.env.EXPO_PUBLIC_ROUTING_SA_URL,
-  TS: process.env.EXPO_PUBLIC_ROUTING_TS_URL,
+const ROUTING_ENDPOINT_CONFIG = {
+  ALNS: {
+    envName: "EXPO_PUBLIC_ROUTING_ALNS_URL",
+    value: process.env.EXPO_PUBLIC_ROUTING_ALNS_URL,
+  },
+  ALNSTW: {
+    envName: "EXPO_PUBLIC_ROUTING_ALNSTW_URL",
+    value: process.env.EXPO_PUBLIC_ROUTING_ALNSTW_URL,
+  },
+  DQN: {
+    envName: "EXPO_PUBLIC_ROUTING_DQN_URL",
+    value: process.env.EXPO_PUBLIC_ROUTING_DQN_URL,
+  },
+  Qlearning: {
+    envName: "EXPO_PUBLIC_ROUTING_QLEARNING_URL",
+    value: process.env.EXPO_PUBLIC_ROUTING_QLEARNING_URL,
+  },
+  SA: {
+    envName: "EXPO_PUBLIC_ROUTING_SA_URL",
+    value: process.env.EXPO_PUBLIC_ROUTING_SA_URL,
+  },
+  TS: {
+    envName: "EXPO_PUBLIC_ROUTING_TS_URL",
+    value: process.env.EXPO_PUBLIC_ROUTING_TS_URL,
+  },
 };
 
-const ALGORITHMS = Object.keys(RAW_ENDPOINTS);
+const ALGORITHMS = Object.keys(ROUTING_ENDPOINT_CONFIG);
 
 function normalizeUrl(value) {
   const trimmed = typeof value === "string" ? value.trim() : "";
@@ -26,10 +47,11 @@ export function getAlgorithms() {
 }
 
 export function getRoutingEndpoint(algorithm) {
-  const normalized = normalizeUrl(RAW_ENDPOINTS[algorithm]);
+  const config = ROUTING_ENDPOINT_CONFIG[algorithm];
+  const normalized = normalizeUrl(config?.value);
   if (!normalized || !isValidHttpUrl(normalized)) {
     throw new Error(
-      `Routing endpoint ayari gecersiz: ${algorithm}. EXPO_PUBLIC_ROUTING_${algorithm}_URL kontrol edin.`
+      `Routing endpoint ayari gecersiz: ${algorithm}. ${config?.envName || "EXPO_PUBLIC_ROUTING_*"} kontrol edin.`
     );
   }
   return normalized;
