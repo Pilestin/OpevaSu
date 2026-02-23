@@ -15,7 +15,7 @@ function resolveApiBaseUrl(rawValue) {
   if (!isValid) {
     return {
       value: "",
-      error: `API adresi gecersiz: "${trimmed}". Ornek: http://YOUR_SERVER_HOST:3003`,
+      error: `API adresi gecersiz: "${trimmed}". `,
     };
   }
 

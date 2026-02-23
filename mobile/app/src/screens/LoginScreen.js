@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,6 +12,8 @@ import {
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { colors, radii, shadows } from "../theme";
+
+const appLogo = require("../../assets/opeva-logo-2.png");
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -42,6 +45,7 @@ export default function LoginScreen() {
       <View style={styles.bgCircleB} />
       <View style={styles.container}>
         <View style={styles.brand}>
+          <Image source={appLogo} style={styles.logoImage} resizeMode="contain" />
           <Text style={styles.logo}>OPEVA</Text>
           <Text style={styles.brandText}>Su Siparis Mobil</Text>
         </View>
@@ -97,7 +101,13 @@ const styles = StyleSheet.create({
     right: -30,
   },
   brand: {
+    alignItems: "center",
     marginBottom: 18,
+  },
+  logoImage: {
+    width: 96,
+    height: 96,
+    marginBottom: 10,
   },
   logo: {
     fontSize: 12,
