@@ -14,8 +14,8 @@ npm install
 ```env
 EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001
 EXPO_PUBLIC_ROUTING_ALNS_URL=http://YOUR_SERVER_HOST:8005/start_alns
-EXPO_PUBLIC_ROUTING_ALNSTW_URL=http://YOUR_SERVER_HOST:8012/start_alnstw
-EXPO_PUBLIC_ROUTING_DQN_URL=http://YOUR_SERVER_HOST:8006/start_dqn
+EXPO_PUBLIC_ROUTING_ALNSTW_URL=http://YOUR_SERVER_HOST:8012/start_alns
+EXPO_PUBLIC_ROUTING_DQN_URL=http://YOUR_SERVER_HOST:8006/start_DQN
 EXPO_PUBLIC_ROUTING_QLEARNING_URL=http://YOUR_SERVER_HOST:8007/start_qlearning
 EXPO_PUBLIC_ROUTING_SA_URL=http://YOUR_SERVER_HOST:8005/start_sa
 EXPO_PUBLIC_ROUTING_TS_URL=http://YOUR_SERVER_HOST:8005/start_ts
@@ -43,14 +43,14 @@ APK/AAB build'lerinde API adresini EAS environment variable olarak tanimlayin:
 eas env:create --name EXPO_PUBLIC_API_BASE_URL --value http://YOUR_SERVER_HOST:3003 --environment preview
 eas env:create --name EXPO_PUBLIC_API_BASE_URL --value http://YOUR_SERVER_HOST:3003 --environment production
 eas env:create --name EXPO_PUBLIC_ROUTING_ALNS_URL --value http://YOUR_SERVER_HOST:8005/start_alns --environment preview
-eas env:create --name EXPO_PUBLIC_ROUTING_ALNSTW_URL --value http://YOUR_SERVER_HOST:8012/start_alnstw --environment preview
-eas env:create --name EXPO_PUBLIC_ROUTING_DQN_URL --value http://YOUR_SERVER_HOST:8006/start_dqn --environment preview
+eas env:create --name EXPO_PUBLIC_ROUTING_ALNSTW_URL --value http://YOUR_SERVER_HOST:8012/start_alns --environment preview
+eas env:create --name EXPO_PUBLIC_ROUTING_DQN_URL --value http://YOUR_SERVER_HOST:8006/start_DQN --environment preview
 eas env:create --name EXPO_PUBLIC_ROUTING_QLEARNING_URL --value http://YOUR_SERVER_HOST:8007/start_qlearning --environment preview
 eas env:create --name EXPO_PUBLIC_ROUTING_SA_URL --value http://YOUR_SERVER_HOST:8005/start_sa --environment preview
 eas env:create --name EXPO_PUBLIC_ROUTING_TS_URL --value http://YOUR_SERVER_HOST:8005/start_ts --environment preview
 eas env:create --name EXPO_PUBLIC_ROUTING_ALNS_URL --value http://YOUR_SERVER_HOST:8005/start_alns --environment production
-eas env:create --name EXPO_PUBLIC_ROUTING_ALNSTW_URL --value http://YOUR_SERVER_HOST:8012/start_alnstw --environment production
-eas env:create --name EXPO_PUBLIC_ROUTING_DQN_URL --value http://YOUR_SERVER_HOST:8006/start_dqn --environment production
+eas env:create --name EXPO_PUBLIC_ROUTING_ALNSTW_URL --value http://YOUR_SERVER_HOST:8012/start_alns --environment production
+eas env:create --name EXPO_PUBLIC_ROUTING_DQN_URL --value http://YOUR_SERVER_HOST:8006/start_DQN --environment production
 eas env:create --name EXPO_PUBLIC_ROUTING_QLEARNING_URL --value http://YOUR_SERVER_HOST:8007/start_qlearning --environment production
 eas env:create --name EXPO_PUBLIC_ROUTING_SA_URL --value http://YOUR_SERVER_HOST:8005/start_sa --environment production
 eas env:create --name EXPO_PUBLIC_ROUTING_TS_URL --value http://YOUR_SERVER_HOST:8005/start_ts --environment production
