@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -13,7 +14,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../context/AuthContext";
-import { ordersApi } from "../services/api";
+import { ordersApi, usersApi } from "../services/api";
 import { colors, radii, shadows } from "../theme";
 
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -59,6 +60,7 @@ export default function OrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState([]);
+  const [usersById, setUsersById] = useState({});
   const [statusFilter, setStatusFilter] = useState(null);
   const [collectionFilter, setCollectionFilter] = useState("orders");
 
@@ -99,14 +101,34 @@ export default function OrdersScreen() {
     [token, statusFilter, isAdmin, collectionFilter]
   );
 
+  const loadUsersForAdmin = useCallback(async () => {
+    if (!isAdmin) {
+      setUsersById({});
+      return;
+    }
+
+    const response = await usersApi.list({ token });
+    const users = Array.isArray(response?.users) ? response.users : [];
+    const nextMap = users.reduce((acc, current) => {
+      const key = String(current?.user_id || "").trim();
+      if (key) acc[key] = current;
+      return acc;
+    }, {});
+    setUsersById(nextMap);
+  }, [isAdmin, token]);
+
   useEffect(() => {
     loadOrders();
-  }, [loadOrders]);
+    loadUsersForAdmin().catch((error) => {
+      Alert.alert("Kullanicilar yuklenemedi", error.message);
+    });
+  }, [loadOrders, loadUsersForAdmin]);
 
   useFocusEffect(
     useCallback(() => {
       loadOrders(true);
-    }, [loadOrders])
+      loadUsersForAdmin().catch(() => {});
+    }, [loadOrders, loadUsersForAdmin])
   );
 
   const closeEditModal = () => {
@@ -215,9 +237,12 @@ export default function OrdersScreen() {
 
   const renderItem = ({ item }) => {
     const request = item.request || {};
+    const customerId = String(item.customer_id || "").trim();
+    const customer = customerId ? usersById[customerId] : null;
     const label = STATUS_LABELS[item.status] || item.status || "-";
     const badgeColor = STATUS_COLORS[item.status] || colors.muted;
     const createdDate = item.order_date ? new Date(item.order_date).toLocaleString("tr-TR") : "-";
+    const deliveryWindow = [item.ready_time, item.due_date].filter(Boolean).join(" - ") || "-";
 
     return (
       <View style={styles.card}>
@@ -230,6 +255,29 @@ export default function OrdersScreen() {
 
         {isAdmin && item.source_collection ? (
           <Text style={styles.sourceText}>{item.source_collection}</Text>
+        ) : null}
+
+        {isAdmin ? (
+          <>
+            <View style={styles.customerRow}>
+              {customer?.profile_picture ? (
+                <Image source={{ uri: customer.profile_picture }} style={styles.customerAvatar} />
+              ) : (
+                <View style={styles.customerAvatarFallback}>
+                  <Text style={styles.customerAvatarFallbackText}>
+                    {(customer?.full_name || customerId || "?").slice(0, 1).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.customerMeta}>
+                <Text style={styles.customerName}>{customer?.full_name || "Isimsiz Musteri"}</Text>
+                <Text style={styles.customerId}>ID: {customerId || "-"}</Text>
+              </View>
+            </View>
+            <Text style={styles.row}>
+              <Text style={styles.rowLabel}>Zaman Araligi:</Text> {deliveryWindow}
+            </Text>
+          </>
         ) : null}
 
         <Text style={styles.row}>
@@ -484,6 +532,43 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     color: colors.primary,
     fontWeight: "700",
+    fontSize: 12,
+  },
+  customerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8,
+  },
+  customerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: "#e2e8f0",
+  },
+  customerAvatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  customerAvatarFallbackText: {
+    color: colors.primary,
+    fontWeight: "800",
+  },
+  customerMeta: {
+    flex: 1,
+  },
+  customerName: {
+    color: colors.text,
+    fontWeight: "700",
+  },
+  customerId: {
+    color: colors.muted,
     fontSize: 12,
   },
   row: {
