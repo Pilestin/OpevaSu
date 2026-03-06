@@ -80,6 +80,65 @@ npm run web
 
 Komut sonrasi terminalde verilen adresten (genelde `http://localhost:8081`) web arayuzunu acabilirsiniz.
 
+## 4) Build Alma (EAS)
+
+### 4.0) Gereksinimler
+
+```bash
+npm install -g eas-cli      # EAS CLI kurulu degilse
+eas login                   # Expo hesabinizla giris yapin
+```
+
+### 4.1) Cevre Degiskenlerini EAS'a Tanimlayin (ilk seferinde)
+
+```bash
+eas env:create --name EXPO_PUBLIC_API_BASE_URL --value http://YOUR_SERVER_HOST:3001 --environment preview
+eas env:create --name EXPO_PUBLIC_API_BASE_URL --value http://YOUR_SERVER_HOST:3001 --environment production
+```
+
+Routing endpoint'leri de tanimlamaniz gerekiyorsa bkz. bolum 2.2.
+
+### 4.2) APK Build (dahili test / Android)
+
+```bash
+cd mobile/app
+npm run build:apk
+# Esittir: npx eas build -p android --profile apk
+```
+
+- `eas.json` -> `apk` profili: `preview` ortami, `apk` cikti
+- Build bittikten sonra Expo konsolundan (https://expo.dev) APK'yi indirip cihaza yukluyebilirsiniz.
+
+### 4.3) AAB Build (Google Play / production)
+
+```bash
+cd mobile/app
+npm run build:aab
+# Esittir: npx eas build -p android --profile production
+```
+
+- `eas.json` -> `production` profili: `app-bundle` (AAB) cikti
+- Google Play Console'a yuklemek icin bu ciktiyi kullanin.
+
+### 4.4) Build Durumunu Goruntuleme
+
+```bash
+eas build:list
+```
+
+### 4.5) Yeniden Build Almanin Kisa Adim Sirasi
+
+```
+1. eas login                          # oturum kontrolu
+2. npm install                        # bagimliliklari guncelle
+3. npm run build:apk                  # APK (test)
+   veya
+   npm run build:aab                  # AAB (production)
+4. Expo konsolundan linki al, indir
+```
+
+---
+
 ## Ekranlar
 
 - Giris

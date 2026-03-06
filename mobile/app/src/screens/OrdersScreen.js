@@ -25,6 +25,9 @@ const STATUS_LABELS = {
   shipping: "Yolda",
   completed: "Teslim edildi",
   cancelled: "Iptal edildi",
+  unplanned: "Planlanmadi",
+  planned: "Planlanmis",
+  deleted: "Silindi",
 };
 
 const STATUS_COLORS = {
@@ -33,13 +36,28 @@ const STATUS_COLORS = {
   shipping: "#0ea5e9",
   completed: "#16a34a",
   cancelled: "#ef4444",
+  unplanned: "#8b5cf6",
+  planned: "#06b6d4",
+  deleted: "#94a3b8",
 };
 
-const FILTERS = [
-  { key: null, label: "Tum Siparisler" },
-  { key: "waiting", label: "Bekleyen" },
+const ACTIVE_STATUSES = new Set(["waiting", "processing", "shipping", "unplanned", "planned"]);
+const COMPLETED_STATUSES = new Set(["completed"]);
+const DELETED_STATUSES = new Set(["deleted", "cancelled"]);
+
+const FILTER_GROUPS = [
+  { key: "active", label: "Aktif" },
   { key: "completed", label: "Tamamlanan" },
+  { key: "deleted", label: "Silinen" },
 ];
+
+function matchesGroup(status, group) {
+  const s = String(status || "").toLowerCase();
+  if (group === "active") return ACTIVE_STATUSES.has(s);
+  if (group === "completed") return COMPLETED_STATUSES.has(s);
+  if (group === "deleted") return DELETED_STATUSES.has(s);
+  return true;
+}
 
 const ADMIN_COLLECTION_FILTERS = [
   { key: "orders", label: "Orders" },
@@ -61,7 +79,7 @@ export default function OrdersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState([]);
   const [usersById, setUsersById] = useState({});
-  const [statusFilter, setStatusFilter] = useState(null);
+  const [filterGroup, setFilterGroup] = useState("active");
   const [collectionFilter, setCollectionFilter] = useState("orders");
 
   const [editingOrder, setEditingOrder] = useState(null);
@@ -79,6 +97,11 @@ export default function OrdersScreen() {
     }
   }, [isAdmin]);
 
+  const filteredOrders = useMemo(
+    () => orders.filter((o) => matchesGroup(o.status, filterGroup)),
+    [orders, filterGroup]
+  );
+
   const loadOrders = useCallback(
     async (isRefresh = false) => {
       try {
@@ -87,7 +110,6 @@ export default function OrdersScreen() {
 
         const response = await ordersApi.list({
           token,
-          status: statusFilter,
           collection: isAdmin ? collectionFilter : null,
         });
         setOrders(response.orders || []);
@@ -98,7 +120,7 @@ export default function OrdersScreen() {
         setRefreshing(false);
       }
     },
-    [token, statusFilter, isAdmin, collectionFilter]
+    [token, isAdmin, collectionFilter]
   );
 
   const loadUsersForAdmin = useCallback(async () => {
@@ -247,7 +269,10 @@ export default function OrdersScreen() {
     return (
       <View style={styles.card}>
         <View style={styles.cardHead}>
-          <Text style={styles.orderId}>{item.order_id || "Siparis"}</Text>
+          <View>
+            <Text style={styles.orderId}>{item.order_id || "Siparis"}</Text>
+            <Text style={styles.customerIdSmall}>Musteri: {customerId || "-"}</Text>
+          </View>
           <View style={[styles.badge, { backgroundColor: `${badgeColor}1a`, borderColor: `${badgeColor}55` }]}>
             <Text style={[styles.badgeText, { color: badgeColor }]}>{label}</Text>
           </View>
@@ -315,7 +340,7 @@ export default function OrdersScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Siparisler</Text>
-        <Text style={styles.subtitle}>{orders.length} kayit</Text>
+        <Text style={styles.subtitle}>{filteredOrders.length} kayit</Text>
       </View>
 
       {isAdmin ? (
@@ -336,27 +361,38 @@ export default function OrdersScreen() {
       ) : null}
 
       <View style={styles.filters}>
-        {FILTERS.map((filter) => {
-          const active = statusFilter === filter.key;
+        {FILTER_GROUPS.map((filter) => {
+          const active = filterGroup === filter.key;
+          const isDeleted = filter.key === "deleted";
           return (
             <Pressable
-              key={String(filter.key)}
-              style={[styles.chip, active && styles.chipActive]}
-              onPress={() => setStatusFilter(filter.key)}
+              key={filter.key}
+              style={[
+                styles.chip,
+                active && (isDeleted ? styles.chipDanger : styles.chipActive),
+              ]}
+              onPress={() => setFilterGroup(filter.key)}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{filter.label}</Text>
+              <Text
+                style={[
+                  styles.chipText,
+                  active && (isDeleted ? styles.chipTextDanger : styles.chipTextActive),
+                ]}
+              >
+                {filter.label}
+              </Text>
             </Pressable>
           );
         })}
       </View>
 
       <FlatList
-        data={orders}
+        data={filteredOrders}
         keyExtractor={(item, index) => item.order_id || String(index)}
         renderItem={renderItem}
         ListEmptyComponent={<Text style={styles.empty}>Siparis bulunamadi.</Text>}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadOrders(true)} />}
-        contentContainerStyle={orders.length === 0 ? styles.emptyContainer : styles.listContent}
+        contentContainerStyle={filteredOrders.length === 0 ? styles.emptyContainer : styles.listContent}
       />
 
       <Modal visible={!!editingOrder} transparent animationType="fade" onRequestClose={closeEditModal}>
@@ -499,6 +535,13 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: colors.primary,
   },
+  chipDanger: {
+    backgroundColor: "#fff1f2",
+    borderColor: "#fecdd3",
+  },
+  chipTextDanger: {
+    color: colors.danger,
+  },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,
@@ -517,6 +560,11 @@ const styles = StyleSheet.create({
   orderId: {
     fontWeight: "700",
     color: colors.text,
+  },
+  customerIdSmall: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 1,
   },
   badge: {
     borderWidth: 1,
