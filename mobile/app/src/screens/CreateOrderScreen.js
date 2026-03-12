@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
-import { ordersApi, productsApi } from "../services/api";
+import { ordersApi, productsApi, usersApi } from "../services/api";
 import { colors, radii, shadows } from "../theme";
 
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -62,6 +62,10 @@ export default function CreateOrderScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [timeTarget, setTimeTarget] = useState("ready");
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminCount, setAdminCount] = useState("5");
+  const [creatingBulk, setCreatingBulk] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -84,7 +88,7 @@ export default function CreateOrderScreen() {
       }
     };
 
-    if (token && !isAdmin) {
+    if (token) {
       loadProducts();
     }
 
@@ -92,6 +96,17 @@ export default function CreateOrderScreen() {
       mounted = false;
     };
   }, [token, isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin || !token) return;
+    usersApi
+      .list({ token })
+      .then((res) => {
+        const all = Array.isArray(res?.users) ? res.users : [];
+        setAdminUsers(all.filter((u) => u.role !== "admin"));
+      })
+      .catch(() => {});
+  }, [isAdmin, token]);
 
   const selectedProduct = useMemo(
     () => products.find((item) => item.product_id === selectedProductId) || null,
@@ -195,106 +210,244 @@ export default function CreateOrderScreen() {
     setTimePickerVisible(false);
   };
 
+  const onBulkCreate = async () => {
+    const count = parseInt(adminCount, 10);
+    if (!Number.isFinite(count) || count < 1 || count > 100) {
+      Alert.alert("Gecersiz", "1 ile 100 arasinda bir sayi girin.");
+      return;
+    }
+    if (!selectedProduct) {
+      Alert.alert("Eksik bilgi", "Lutfen bir urun secin.");
+      return;
+    }
+    if (adminUsers.length === 0) {
+      Alert.alert("Kullanici yok", "Sistemde musteri bulunamadi.");
+      return;
+    }
+
+    setCreatingBulk(true);
+    setBulkResult(null);
+
+    const orders = Array.from({ length: count }, (_, i) => {
+      const customer = adminUsers[Math.floor(Math.random() * adminUsers.length)];
+      const qty = Math.floor(Math.random() * 2) + 1;
+      const addr = String(customer?.address || customer?.location?.address || "").trim() || "Adres belirtilmedi";
+      const lat = Number(customer?.latitude ?? customer?.location?.latitude ?? 39.7598);
+      const lng = Number(customer?.longitude ?? customer?.location?.longitude ?? 30.5042);
+      return {
+        order_id: `order_${dateStamp()}_${randomCode()}${i.toString(36).padStart(2, "0")}`,
+        task_id: `task_${dateStamp()}_${randomCode()}${i.toString(36).padStart(2, "0")}`,
+        customer_id: customer.user_id,
+        location: { address: addr, latitude: Number.isFinite(lat) ? lat : 39.7598, longitude: Number.isFinite(lng) ? lng : 30.5042 },
+        ready_time: "09:00",
+        due_date: "17:00",
+        order_date: new Date().toISOString().slice(0, 10),
+        service_time: 120,
+        request: {
+          product_id: selectedProduct.product_id,
+          product_name: selectedProduct.name || selectedProduct.product_id,
+          notes: "",
+          quantity: qty,
+          demand: qty * (Number.isFinite(demandUnit) && demandUnit > 0 ? demandUnit : 19),
+        },
+        status: "waiting",
+        assigned_vehicle: "default_vehicle",
+        assigned_route_id: "default_route",
+        priority_level: 0,
+        change_log: [],
+        total_price: qty * (unitPrice > 0 ? unitPrice : 100),
+      };
+    });
+
+    try {
+      const result = await ordersApi.bulkCreate({ token, orders });
+      setBulkResult({ success: result.success ?? 0, failed: result.failed ?? 0 });
+    } catch (error) {
+      Alert.alert("Hata", error.message);
+    } finally {
+      setCreatingBulk(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       {isAdmin ? (
-        <View style={styles.adminBlock}>
-          <Text style={styles.adminBlockText}>Admin kullanici yeni siparis olusturamaz.</Text>
-        </View>
-      ) : null}
-      <Text style={styles.title}>Yeni Siparis</Text>
-      <Text style={styles.subtitle}>Urunu sec, miktari gir, siparisi aninda olustur.</Text>
+        <>
+          <Text style={styles.title}>Hizli Siparis Olustur</Text>
+          <Text style={styles.subtitle}>
+            Rastgele musterilere siparis atanir.{"\n"}
+            Miktar 1–2 adet, pencere 09:00–17:00 sabittir.
+          </Text>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Urunler</Text>
-        {loadingProducts ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={styles.loadingText}>Urunler yukleniyor...</Text>
+          <View style={styles.card}>
+            <Text style={styles.label}>Urun Sec</Text>
+            {loadingProducts ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.loadingText}>Urunler yukleniyor...</Text>
+              </View>
+            ) : products.length === 0 ? (
+              <Text style={styles.emptyText}>Urun bulunamadi.</Text>
+            ) : (
+              <View style={styles.productGrid}>
+                {products.map((product) => {
+                  const selected = product.product_id === selectedProductId;
+                  return (
+                    <Pressable
+                      key={product.product_id}
+                      style={[styles.productCard, selected && styles.productCardSelected]}
+                      onPress={() => setSelectedProductId(product.product_id)}
+                    >
+                      {product.image_url ? (
+                        <Image source={{ uri: product.image_url }} style={styles.productImage} />
+                      ) : null}
+                      <Text style={styles.productName} numberOfLines={2}>
+                        {product.name || product.product_id}
+                      </Text>
+                      <Text style={styles.productMeta}>{`${Number(product.price || 0).toFixed(2)} TL`}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
+            <Text style={styles.label}>Musteri Sayisi</Text>
+            <TextInput
+              style={styles.input}
+              value={adminCount}
+              onChangeText={setAdminCount}
+              keyboardType="numeric"
+              placeholder="Ornegin: 5"
+              placeholderTextColor={colors.muted}
+            />
+
+            <View style={styles.adminInfoRow}>
+              <Text style={styles.adminInfoChip}>🎲 1–2 adet</Text>
+              <Text style={styles.adminInfoChip}>🕘 09:00–17:00</Text>
+              <Text style={styles.adminInfoChip}>👥 {adminUsers.length} musteri</Text>
+            </View>
           </View>
-        ) : products.length === 0 ? (
-          <Text style={styles.emptyText}>Urun bulunamadi.</Text>
-        ) : (
-          <View style={styles.productGrid}>
-            {products.map((product) => {
-              const selected = product.product_id === selectedProductId;
-              return (
-                <Pressable
-                  key={product.product_id}
-                  style={[styles.productCard, selected && styles.productCardSelected]}
-                  onPress={() => setSelectedProductId(product.product_id)}
-                >
-                  {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} /> : null}
-                  <Text style={styles.productName} numberOfLines={2}>
-                    {product.name || product.product_id}
-                  </Text>
-                  <Text style={styles.productMeta}>{`${Number(product.price || 0).toFixed(2)} TL`}</Text>
+
+          {bulkResult ? (
+            <View style={[styles.summaryCard, bulkResult.failed > 0 && styles.summaryWarn]}>
+              <Text style={styles.summaryText}>Son olusturma sonucu</Text>
+              <Text style={styles.summaryPrice}>✅ {bulkResult.success} basarili</Text>
+              {bulkResult.failed > 0 ? (
+                <Text style={styles.bulkFailed}>❌ {bulkResult.failed} basarisiz</Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          <Pressable
+            style={[
+              styles.button,
+              (creatingBulk || !selectedProduct || adminUsers.length === 0) && styles.buttonDisabled,
+            ]}
+            onPress={onBulkCreate}
+            disabled={creatingBulk || !selectedProduct || adminUsers.length === 0}
+          >
+            <Text style={styles.buttonText}>
+              {creatingBulk ? "Olusturuluyor..." : "Siparis Olustur"}
+            </Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <Text style={styles.title}>Yeni Siparis</Text>
+          <Text style={styles.subtitle}>Urunu sec, miktari gir, siparisi aninda olustur.</Text>
+
+          <View style={styles.card}>
+            <Text style={styles.label}>Urunler</Text>
+            {loadingProducts ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.loadingText}>Urunler yukleniyor...</Text>
+              </View>
+            ) : products.length === 0 ? (
+              <Text style={styles.emptyText}>Urun bulunamadi.</Text>
+            ) : (
+              <View style={styles.productGrid}>
+                {products.map((product) => {
+                  const selected = product.product_id === selectedProductId;
+                  return (
+                    <Pressable
+                      key={product.product_id}
+                      style={[styles.productCard, selected && styles.productCardSelected]}
+                      onPress={() => setSelectedProductId(product.product_id)}
+                    >
+                      {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} /> : null}
+                      <Text style={styles.productName} numberOfLines={2}>
+                        {product.name || product.product_id}
+                      </Text>
+                      <Text style={styles.productMeta}>{`${Number(product.price || 0).toFixed(2)} TL`}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
+            <Text style={styles.label}>Miktar</Text>
+            <TextInput
+              style={styles.input}
+              value={quantity}
+              onChangeText={setQuantity}
+              placeholder="Miktar"
+              placeholderTextColor={colors.muted}
+              keyboardType="numeric"
+            />
+
+            <View style={styles.twoColumns}>
+              <View style={styles.col}>
+                <Text style={styles.label}>Hazir olma</Text>
+                <Pressable style={styles.timeField} onPress={() => openTimePicker("ready")}>
+                  <Text style={styles.timeValue}>{readyTime}</Text>
+                  <Text style={styles.timeHint}>Sec</Text>
                 </Pressable>
-              );
-            })}
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>Teslim saati</Text>
+                <Pressable style={styles.timeField} onPress={() => openTimePicker("due")}>
+                  <Text style={styles.timeValue}>{dueTime}</Text>
+                  <Text style={styles.timeHint}>Sec</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <Text style={styles.label}>Adres</Text>
+            <TextInput
+              style={[styles.input, styles.multiline]}
+              value={address}
+              onChangeText={setAddress}
+              placeholder="Teslimat adresi"
+              placeholderTextColor={colors.muted}
+              multiline
+            />
+
+            <Text style={styles.label}>Not</Text>
+            <TextInput
+              style={[styles.input, styles.multiline]}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Opsiyonel not"
+              placeholderTextColor={colors.muted}
+              multiline
+            />
           </View>
-        )}
 
-        <Text style={styles.label}>Miktar</Text>
-        <TextInput
-          style={styles.input}
-          value={quantity}
-          onChangeText={setQuantity}
-          placeholder="Miktar"
-          placeholderTextColor={colors.muted}
-          keyboardType="numeric"
-        />
-
-        <View style={styles.twoColumns}>
-          <View style={styles.col}>
-            <Text style={styles.label}>Hazir olma</Text>
-            <Pressable style={styles.timeField} onPress={() => openTimePicker("ready")}>
-              <Text style={styles.timeValue}>{readyTime}</Text>
-              <Text style={styles.timeHint}>Sec</Text>
-            </Pressable>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryText}>Tahmini toplam</Text>
+            <Text style={styles.summaryPrice}>{`${totalPrice} TL`}</Text>
           </View>
-          <View style={styles.col}>
-            <Text style={styles.label}>Teslim saati</Text>
-            <Pressable style={styles.timeField} onPress={() => openTimePicker("due")}>
-              <Text style={styles.timeValue}>{dueTime}</Text>
-              <Text style={styles.timeHint}>Sec</Text>
-            </Pressable>
-          </View>
-        </View>
 
-        <Text style={styles.label}>Adres</Text>
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          value={address}
-          onChangeText={setAddress}
-          placeholder="Teslimat adresi"
-          placeholderTextColor={colors.muted}
-          multiline
-        />
-
-        <Text style={styles.label}>Not</Text>
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Opsiyonel not"
-          placeholderTextColor={colors.muted}
-          multiline
-        />
-      </View>
-
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryText}>Tahmini toplam</Text>
-        <Text style={styles.summaryPrice}>{`${totalPrice} TL`}</Text>
-      </View>
-
-      <Pressable
-        style={[styles.button, (submitting || isAdmin) && styles.buttonDisabled]}
-        onPress={onSubmit}
-        disabled={submitting || isAdmin}
-      >
-        <Text style={styles.buttonText}>{submitting ? "Kaydediliyor..." : "Siparis Ver"}</Text>
-      </Pressable>
+          <Pressable
+            style={[styles.button, submitting && styles.buttonDisabled]}
+            onPress={onSubmit}
+            disabled={submitting}
+          >
+            <Text style={styles.buttonText}>{submitting ? "Kaydediliyor..." : "Siparis Ver"}</Text>
+          </Pressable>
+        </>
+      )}
 
       <Modal
         visible={timePickerVisible}
@@ -536,5 +689,32 @@ const styles = StyleSheet.create({
   modalCloseText: {
     color: colors.muted,
     fontWeight: "700",
+  },
+  adminInfoRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  adminInfoChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    color: colors.primary,
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  summaryWarn: {
+    backgroundColor: "#fff7ed",
+    borderColor: "#fed7aa",
+  },
+  bulkFailed: {
+    marginTop: 4,
+    color: colors.danger,
+    fontWeight: "700",
+    fontSize: 16,
   },
 });

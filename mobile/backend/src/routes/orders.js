@@ -262,6 +262,96 @@ router.post("/", requireAuth, async (req, res) => {
   return res.status(201).json({ success: true });
 });
 
+router.post("/bulk", requireAuth, async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ detail: "Bu endpoint sadece admin icin." });
+  }
+
+  const db = getDb();
+  const items = req.body?.orders;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ detail: "orders dizisi zorunlu ve bos olamaz." });
+  }
+  if (items.length > 100) {
+    return res.status(400).json({ detail: "En fazla 100 siparis bir seferde olusturulabilir." });
+  }
+
+  const now = new Date();
+  let success = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (const input of items) {
+    try {
+      const orderId = String(input?.order_id || "").trim();
+      const taskId = String(input?.task_id || "").trim();
+      const customerId = String(input?.customer_id || "").trim();
+      const productId = String(input?.request?.product_id || "SU_0").trim();
+      const productName = String(input?.request?.product_name || "").trim();
+      const quantity = Number(input?.request?.quantity);
+      const totalPrice = Number(input?.total_price);
+      const address = String(input?.location?.address || "").trim();
+      const readyTime = String(input?.ready_time || "09:00").trim();
+      const dueDate = String(input?.due_date || "17:00").trim();
+      const latitude = Number(input?.location?.latitude);
+      const longitude = Number(input?.location?.longitude);
+
+      if (!orderId || !taskId || !customerId || !productName) {
+        failed++;
+        errors.push(`${orderId || "?"}: Zorunlu alanlar eksik`);
+        continue;
+      }
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        failed++;
+        errors.push(`${orderId}: Gecersiz miktar`);
+        continue;
+      }
+
+      const isPackage = isPackageProduct(productId, productName);
+      const demand = Number(input?.request?.demand) > 0
+        ? Number(input.request.demand)
+        : (isPackage ? quantity : quantity * 19);
+
+      const payload = {
+        customer_id: customerId,
+        order_id: orderId,
+        task_id: taskId,
+        location: {
+          address: address || "Adres belirtilmedi",
+          latitude: Number.isFinite(latitude) ? latitude : 39.7598,
+          longitude: Number.isFinite(longitude) ? longitude : 30.5042,
+        },
+        ready_time: toTimeString(readyTime),
+        due_date: toTimeString(dueDate),
+        order_date: String(input?.order_date || dateOnly(now)),
+        request: { product_id: productId, product_name: productName, notes: String(input?.request?.notes || ""), quantity, demand },
+        status: normalizeStatus(input?.status || "waiting"),
+        total_price: Number.isFinite(totalPrice) && totalPrice > 0 ? totalPrice : quantity * 100,
+        service_time: Number(input?.service_time) > 0 ? Number(input.service_time) : 120,
+        priority_level: 0,
+        assigned_vehicle: String(input?.assigned_vehicle || "default_vehicle"),
+        assigned_route_id: String(input?.assigned_route_id || "default_route"),
+        change_log: [],
+        created_at: now,
+        updated_at: now,
+      };
+
+      const targetCollection = isPackage ? PACKAGE_ORDER_COLLECTION : ORDER_COLLECTION;
+      const result = await db.collection(targetCollection).insertOne(payload);
+      if (result.acknowledged) {
+        success++;
+      } else {
+        failed++;
+      }
+    } catch (err) {
+      failed++;
+      errors.push(String(err?.message || "Bilinmeyen hata").slice(0, 100));
+    }
+  }
+
+  return res.status(201).json({ success, failed, errors: errors.slice(0, 10) });
+});
+
 router.put("/:orderId", requireAuth, async (req, res) => {
   const db = getDb();
   const orderId = String(req.params.orderId || "").trim();

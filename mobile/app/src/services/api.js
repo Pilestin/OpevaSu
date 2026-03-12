@@ -91,6 +91,15 @@ export const ordersApi = {
       },
       body: JSON.stringify({ updates }),
     }),
+  bulkCreate: ({ token, orders }) =>
+    request("/orders/bulk", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ orders }),
+    }),
   remove: ({ token, orderId }) =>
     request(`/orders/${encodeURIComponent(orderId)}`, {
       method: "DELETE",
