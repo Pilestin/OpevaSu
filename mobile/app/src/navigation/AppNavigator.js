@@ -10,6 +10,7 @@ import CreateOrderScreen from "../screens/CreateOrderScreen.js";
 import ProfileScreen from "../screens/ProfileScreen.js";
 import UsersScreen from "../screens/UsersScreen.js";
 import RoutingScreen from "../features/routing/RoutingScreen";
+import FleetScreen from "../screens/FleetScreen";
 import { colors, radii } from "../theme";
 
 const AuthStack = createNativeStackNavigator();
@@ -35,6 +36,8 @@ export function MainNavigator() {
     Profile: "account-circle-outline",
     Users: "account-group-outline",
     Routing: "map-marker-path",
+    QuickOrder: "lightning-bolt-outline",
+    Fleet: "truck-fast-outline",
   };
 
   return (
@@ -75,11 +78,15 @@ export function MainNavigator() {
     >
       <Tab.Screen name="Orders" component={OrdersScreen} options={{ title: "Siparislerim" }} />
       {isAdmin ? (
-        <Tab.Screen name="Users" component={UsersScreen} options={{ title: "Kullanicilar" }} />
+        <>
+          <Tab.Screen name="QuickOrder" component={CreateOrderScreen} options={{ title: "Hizli Siparis" }} />
+          <Tab.Screen name="Users" component={UsersScreen} options={{ title: "Kullanicilar" }} />
+          <Tab.Screen name="Routing" component={RoutingScreen} options={{ title: "Rotalama" }} />
+          <Tab.Screen name="Fleet" component={FleetScreen} options={{ title: "Filo" }} />
+        </>
       ) : (
         <Tab.Screen name="CreateOrder" component={CreateOrderScreen} options={{ title: "Yeni Siparis" }} />
       )}
-      {isAdmin ? <Tab.Screen name="Routing" component={RoutingScreen} options={{ title: "Rotalama" }} /> : null}
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: "Profil" }} />
     </Tab.Navigator>
   );
