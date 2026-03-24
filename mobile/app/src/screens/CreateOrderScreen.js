@@ -228,8 +228,47 @@ export default function CreateOrderScreen() {
     setCreatingBulk(true);
     setBulkResult(null);
 
-    const orders = Array.from({ length: count }, (_, i) => {
-      const customer = adminUsers[Math.floor(Math.random() * adminUsers.length)];
+    const statusChecks = ["waiting"];
+    let occupiedCustomerIds = new Set();
+
+    try {
+      const responses = await Promise.all(
+        statusChecks.map((status) => ordersApi.list({ token, status }))
+      );
+
+      occupiedCustomerIds = new Set(
+        responses
+          .flatMap((res) => (Array.isArray(res?.orders) ? res.orders : []))
+          .map((order) => String(order?.customer_id || "").trim())
+          .filter(Boolean)
+      );
+    } catch (error) {
+      Alert.alert("Siparis havuzu okunamadi", error.message);
+      setCreatingBulk(false);
+      return;
+    }
+
+    const eligibleUsers = adminUsers.filter(
+      (customer) => !occupiedCustomerIds.has(String(customer?.user_id || "").trim())
+    );
+
+    if (eligibleUsers.length === 0) {
+      Alert.alert("Uygun musteri yok", "Siparis havuzunda olmayan musteri kalmadi.");
+      setCreatingBulk(false);
+      return;
+    }
+
+    const shuffle = [...eligibleUsers].sort(() => Math.random() - 0.5);
+    const selectedCustomers = shuffle.slice(0, Math.min(count, shuffle.length));
+
+    if (selectedCustomers.length < count) {
+      Alert.alert(
+        "Bilgi",
+        `Isteginiz ${count} musteriydi. Havuzda olmayan ${selectedCustomers.length} musteriye siparis olusturulacak.`
+      );
+    }
+
+    const orders = selectedCustomers.map((customer, i) => {
       const qty = Math.floor(Math.random() * 2) + 1;
       const addr = String(customer?.address || customer?.location?.address || "").trim() || "Adres belirtilmedi";
       const lat = Number(customer?.latitude ?? customer?.location?.latitude ?? 39.7598);
@@ -261,7 +300,13 @@ export default function CreateOrderScreen() {
 
     try {
       const result = await ordersApi.bulkCreate({ token, orders });
-      setBulkResult({ success: result.success ?? 0, failed: result.failed ?? 0 });
+      setBulkResult({
+        success: result.success ?? 0,
+        failed: result.failed ?? 0,
+        skipped: result.skipped ?? 0,
+        requested: count,
+        attempted: orders.length,
+      });
     } catch (error) {
       Alert.alert("Hata", error.message);
     } finally {
@@ -331,9 +376,13 @@ export default function CreateOrderScreen() {
           {bulkResult ? (
             <View style={[styles.summaryCard, bulkResult.failed > 0 && styles.summaryWarn]}>
               <Text style={styles.summaryText}>Son olusturma sonucu</Text>
+              <Text style={styles.summaryText}>Istenen: {bulkResult.requested} • Denenen: {bulkResult.attempted}</Text>
               <Text style={styles.summaryPrice}>✅ {bulkResult.success} basarili</Text>
               {bulkResult.failed > 0 ? (
                 <Text style={styles.bulkFailed}>❌ {bulkResult.failed} basarisiz</Text>
+              ) : null}
+              {bulkResult.skipped > 0 ? (
+                <Text style={styles.bulkSkipped}>⏭️ {bulkResult.skipped} atlandi (havuzda zaten var)</Text>
               ) : null}
             </View>
           ) : null}
@@ -716,5 +765,11 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontWeight: "700",
     fontSize: 16,
+  },
+  bulkSkipped: {
+    marginTop: 4,
+    color: colors.warning,
+    fontWeight: "700",
+    fontSize: 15,
   },
 });

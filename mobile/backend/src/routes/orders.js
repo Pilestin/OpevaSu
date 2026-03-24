@@ -8,6 +8,7 @@ const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const ORDER_COLLECTION = "Orders";
 const PACKAGE_ORDER_COLLECTION = "Orders_S";
+const ACTIVE_POOL_STATUSES = ["waiting"];
 
 const STATUS_MAP = {
   bekliyor: "waiting",
@@ -106,6 +107,36 @@ function validateTimes(readyTime, dueDate) {
     return "due_date, ready_time saatinden once olamaz.";
   }
   return null;
+}
+
+async function getCustomersWithActiveOrders(db, customerIds) {
+  const normalizedIds = Array.from(new Set(
+    (Array.isArray(customerIds) ? customerIds : [])
+      .map((id) => String(id || "").trim())
+      .filter(Boolean)
+  ));
+
+  if (normalizedIds.length === 0) {
+    return new Set();
+  }
+
+  const filter = {
+    customer_id: { $in: normalizedIds },
+    status: { $in: ACTIVE_POOL_STATUSES },
+  };
+
+  const [orders, packageOrders] = await Promise.all([
+    db.collection(ORDER_COLLECTION).find(filter, { projection: { _id: 0, customer_id: 1 } }).toArray(),
+    db.collection(PACKAGE_ORDER_COLLECTION).find(filter, { projection: { _id: 0, customer_id: 1 } }).toArray(),
+  ]);
+
+  const occupied = new Set();
+  for (const item of [...orders, ...packageOrders]) {
+    const id = String(item?.customer_id || "").trim();
+    if (id) occupied.add(id);
+  }
+
+  return occupied;
 }
 
 router.get("/", requireAuth, async (req, res) => {
@@ -279,7 +310,14 @@ router.post("/bulk", requireAuth, async (req, res) => {
   const now = new Date();
   let success = 0;
   let failed = 0;
+  let skipped = 0;
   const errors = [];
+
+  const customerIdsInPayload = items
+    .map((item) => String(item?.customer_id || "").trim())
+    .filter(Boolean);
+  const customersWithActiveOrders = await getCustomersWithActiveOrders(db, customerIdsInPayload);
+  const customersUsedInThisRequest = new Set();
 
   for (const input of items) {
     try {
@@ -306,6 +344,19 @@ router.post("/bulk", requireAuth, async (req, res) => {
         errors.push(`${orderId}: Gecersiz miktar`);
         continue;
       }
+
+      if (customersWithActiveOrders.has(customerId)) {
+        skipped++;
+        errors.push(`${orderId}: ${customerId} icin havuzda aktif siparis zaten var`);
+        continue;
+      }
+
+      if (customersUsedInThisRequest.has(customerId)) {
+        skipped++;
+        errors.push(`${orderId}: ${customerId} bu toplu olusturmada zaten eklendi`);
+        continue;
+      }
+      customersUsedInThisRequest.add(customerId);
 
       const isPackage = isPackageProduct(productId, productName);
       const demand = Number(input?.request?.demand) > 0
@@ -349,7 +400,7 @@ router.post("/bulk", requireAuth, async (req, res) => {
     }
   }
 
-  return res.status(201).json({ success, failed, errors: errors.slice(0, 10) });
+  return res.status(201).json({ success, failed, skipped, errors: errors.slice(0, 20) });
 });
 
 router.put("/:orderId", requireAuth, async (req, res) => {
