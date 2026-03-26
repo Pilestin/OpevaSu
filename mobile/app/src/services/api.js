@@ -121,6 +121,31 @@ export const usersApi = {
     }),
 };
 
+export const routesApi = {
+  list: ({ token }) =>
+    request("/routes", {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+};
+
+export const driverTrackingApi = {
+  list: ({ token, driverId }) => {
+    const query = driverId ? `?driver_id=${encodeURIComponent(driverId)}` : "";
+    return request(`/driver-locations${query}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+  publish: ({ token, payload }) =>
+    request("/driver-locations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    }),
+};
+
 export const profileApi = {
   get: ({ token, userId }) =>
     request(`/profile/${encodeURIComponent(userId)}`, {

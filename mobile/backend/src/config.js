@@ -17,6 +17,7 @@ const config = {
   jwtSecret: process.env.JWT_SECRET || "change-me-mobile-backend-min-32-chars",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "60m",
   allowPasswordlessLogin: parseBoolean(process.env.ALLOW_PASSWORDLESS_LOGIN, true),
+  remoteFleetApiBaseUrl: (process.env.REMOTE_FLEET_API_BASE_URL || "http://157.230.17.89:3001/api").replace(/\/+$/, ""),
 };
 
 module.exports = config;

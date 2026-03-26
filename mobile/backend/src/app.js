@@ -5,6 +5,8 @@ const ordersRoutes = require("./routes/orders");
 const profileRoutes = require("./routes/profile");
 const productsRoutes = require("./routes/products");
 const usersRoutes = require("./routes/users");
+const routesRoutes = require("./routes/routes");
+const driverLocationsRoutes = require("./routes/driverLocations");
 
 const app = express();
 
@@ -20,6 +22,8 @@ app.use("/orders", ordersRoutes);
 app.use("/profile", profileRoutes);
 app.use("/products", productsRoutes);
 app.use("/users", usersRoutes);
+app.use("/routes", routesRoutes);
+app.use("/driver-locations", driverLocationsRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

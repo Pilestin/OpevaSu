@@ -8,7 +8,8 @@ import LoginScreen from "../screens/LoginScreen.js";
 import OrdersScreen from "../screens/OrdersScreen.js";
 import CreateOrderScreen from "../screens/CreateOrderScreen.js";
 import ProfileScreen from "../screens/ProfileScreen.js";
-import UsersScreen from "../screens/UsersScreen.js";
+import AdminScreen from "../screens/AdminScreen.js";
+import DriverScreen from "../screens/DriverScreen.js";
 import RoutingScreen from "../features/routing/RoutingScreen";
 import FleetScreen from "../screens/FleetScreen";
 import { colors, radii } from "../theme";
@@ -29,12 +30,14 @@ export function MainNavigator() {
   const bottomInset = Math.max(insets.bottom, 8);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const isDriver = user?.role === "driver";
 
   const iconMap = {
     Orders: "clipboard-list-outline",
     CreateOrder: "plus-circle-outline",
     Profile: "account-circle-outline",
-    Users: "account-group-outline",
+    Admin: "shield-crown-outline",
+    Driver: "truck-delivery-outline",
     Routing: "map-marker-path",
     QuickOrder: "lightning-bolt-outline",
     Fleet: "truck-fast-outline",
@@ -80,10 +83,12 @@ export function MainNavigator() {
       {isAdmin ? (
         <>
           <Tab.Screen name="QuickOrder" component={CreateOrderScreen} options={{ title: "Hizli Siparis" }} />
-          <Tab.Screen name="Users" component={UsersScreen} options={{ title: "Kullanicilar" }} />
+          <Tab.Screen name="Admin" component={AdminScreen} options={{ title: "Admin" }} />
           <Tab.Screen name="Routing" component={RoutingScreen} options={{ title: "Rotalama" }} />
           <Tab.Screen name="Fleet" component={FleetScreen} options={{ title: "Filo" }} />
         </>
+      ) : isDriver ? (
+        <Tab.Screen name="Driver" component={DriverScreen} options={{ title: "Driver" }} />
       ) : (
         <Tab.Screen name="CreateOrder" component={CreateOrderScreen} options={{ title: "Yeni Siparis" }} />
       )}
