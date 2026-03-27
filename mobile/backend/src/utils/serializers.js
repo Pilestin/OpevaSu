@@ -14,10 +14,28 @@ function toTimeString(value) {
   return String(value);
 }
 
+function normalizeRoleAuthorityLevel(user) {
+  const normalized = String(user?.role_authority_level || user?.role || "").trim().toLowerCase();
+  if (normalized === "fleet manager" || normalized === "admin") return "Fleet Manager";
+  if (normalized === "driver") return "Driver";
+  if (normalized === "customer" || normalized === "user") return "Customer";
+  return user?.role_authority_level || "";
+}
+
+function normalizeRole(user) {
+  const normalized = String(user?.role || user?.role_authority_level || "").trim().toLowerCase();
+  if (normalized === "fleet manager" || normalized === "admin") return "admin";
+  if (normalized === "driver") return "driver";
+  if (normalized === "customer" || normalized === "user") return "customer";
+  return user?.role || "customer";
+}
+
 function sanitizeUser(user) {
   if (!user) return null;
   const copy = { ...user };
   if (copy._id) copy._id = String(copy._id);
+  copy.role = normalizeRole(copy);
+  copy.role_authority_level = normalizeRoleAuthorityLevel(copy);
   delete copy.password;
   delete copy.password_hash;
   return copy;
@@ -38,4 +56,6 @@ module.exports = {
   sanitizeUser,
   serializeOrder,
   toTimeString,
+  normalizeRole,
+  normalizeRoleAuthorityLevel,
 };

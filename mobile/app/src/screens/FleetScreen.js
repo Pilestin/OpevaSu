@@ -3,10 +3,10 @@ import { StyleSheet, View, Text, Pressable, ActivityIndicator, Dimensions, Scrol
 import MapView, { Marker, Callout, Polyline } from "react-native-maps";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
+import { runtimeConfig } from "../config/runtimeConfig";
 import { driverTrackingApi, routesApi } from "../services/api";
 import { colors, radii, shadows } from "../theme";
 
-const VEHICLES_API_URL = "http://157.230.17.89:3001/api/vehicles/locations/fiware";
 const POLLING_INTERVAL = 5000;
 const TRACKABLE_VEHICLES = ["musoshi001", "musoshi004", "musoshi006"];
 
@@ -105,7 +105,11 @@ export default function FleetScreen() {
 
   const fetchVehicles = useCallback(async () => {
     try {
-      const response = await fetch(VEHICLES_API_URL);
+      if (!runtimeConfig.fleetVehiclesUrl) {
+        throw new Error("EXPO_PUBLIC_FLEET_VEHICLES_URL ayarlanmali.");
+      }
+
+      const response = await fetch(runtimeConfig.fleetVehiclesUrl);
       if (!response.ok) return;
       const data = await response.json();
       if (!Array.isArray(data)) return;

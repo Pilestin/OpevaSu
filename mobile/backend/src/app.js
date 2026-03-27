@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const authRoutes = require("./routes/auth");
+const sessionAuthRoutes = require("./routes/sessionAuth");
 const ordersRoutes = require("./routes/orders");
 const profileRoutes = require("./routes/profile");
 const productsRoutes = require("./routes/products");
@@ -19,6 +20,7 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/auth", authRoutes);
+app.use("/api/auth", sessionAuthRoutes);
 app.use("/orders", ordersRoutes);
 app.use("/profile", profileRoutes);
 app.use("/products", productsRoutes);

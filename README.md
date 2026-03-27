@@ -114,5 +114,7 @@ Calistirma:
 - npm install
 - npm run dev
 
-Mobil app (`mobile/app/.env`):
+Mobil app ve mobile backend ortak olarak repo kokundeki `.env` dosyasini kullanir:
 - `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001`
+- `EXPO_PUBLIC_FLEET_VEHICLES_URL=http://127.0.0.1:3001/api/vehicles/locations/fiware`
+- `REMOTE_FLEET_API_BASE_URL=http://127.0.0.1:3001/api`

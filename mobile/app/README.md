@@ -9,10 +9,12 @@ npm install
 
 ## 2) Ortam Degiskeni
 
-`.env.example` dosyasini `.env` olarak kopyalayin ve API adresini ayarlayin:
+Repo kokundeki `.env` dosyasini duzenleyin:
 
 ```env
 EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001
+EXPO_PUBLIC_FLEET_VEHICLES_URL=http://127.0.0.1:3001/api/vehicles/locations/fiware
+REMOTE_FLEET_API_BASE_URL=http://127.0.0.1:3001/api
 EXPO_PUBLIC_ROUTING_ALNS_URL=http://YOUR_SERVER_HOST:8005/start_alns
 EXPO_PUBLIC_ROUTING_ALNSTW_URL=http://YOUR_SERVER_HOST:8012/start_alns
 EXPO_PUBLIC_ROUTING_DQN_URL=http://YOUR_SERVER_HOST:8006/start_DQN
@@ -21,6 +23,7 @@ EXPO_PUBLIC_ROUTING_SA_URL=http://YOUR_SERVER_HOST:8005/start_sa
 EXPO_PUBLIC_ROUTING_TS_URL=http://YOUR_SERVER_HOST:8005/start_ts
 ```
 
+Mobil uygulama artik `mobile/app/.env` yerine repo kokundeki `.env` dosyasini `app.config.js` uzerinden okur.
 Telefon cihazinda test ederken `127.0.0.1` yerine bilgisayarinizin LAN IP adresini kullanin.
 Routing panel endpointleri (`ALNS`, `ALNSTW`, `DQN`, `Qlearning`, `SA`, `TS`) ayri env olarak yonetilir.
 

@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
 import LoginScreen from "../screens/LoginScreen.js";
+import DriverLoginScreen from "../screens/DriverLoginScreen.js";
 import OrdersScreen from "../screens/OrdersScreen.js";
 import CreateOrderScreen from "../screens/CreateOrderScreen.js";
 import ProfileScreen from "../screens/ProfileScreen.js";
@@ -21,6 +22,7 @@ export function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="DriverLogin" component={DriverLoginScreen} />
     </AuthStack.Navigator>
   );
 }
