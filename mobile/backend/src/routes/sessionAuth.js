@@ -13,28 +13,26 @@ function buildSessionUser(user) {
 }
 
 router.post("/login", async (req, res) => {
-  const rawUserIdOrEmail = req.body?.user_id_or_email;
-  const userIdOrEmail = typeof rawUserIdOrEmail === "string" ? rawUserIdOrEmail.trim() : "";
+  const rawUserName = req.body?.user_name;
+  const userName = typeof rawUserName === "string" ? rawUserName.trim() : "";
   const password = req.body?.password;
-  if (!userIdOrEmail) {
-    return res.status(400).json({ detail: "user_id_or_email zorunlu." });
+  if (!userName) {
+    return res.status(400).json({ detail: "user_name zorunlu." });
+  }
+
+  if (!password) {
+    return res.status(400).json({ detail: "password zorunlu." });
   }
 
   const db = getDb();
-  const user = await db.collection("Users").findOne({
-    $or: [
-      { user_id: userIdOrEmail },
-      { email: userIdOrEmail },
-      { email: userIdOrEmail.toLowerCase() },
-    ],
-  });
+  const user = await db.collection("Users").findOne({ user_name: userName });
 
   const storedPassword = user?.password || user?.password_hash;
   if (!user) {
     return res.status(401).json({ detail: "Gecersiz kullanici bilgileri" });
   }
 
-  if (password && storedPassword && !verifyPassword(password, storedPassword)) {
+  if (!verifyPassword(password, storedPassword)) {
     return res.status(401).json({ detail: "Gecersiz kullanici bilgileri" });
   }
 
@@ -50,6 +48,7 @@ router.post("/login", async (req, res) => {
   await db.collection("AuthSessions").insertOne({
     session_id: sessionId,
     user_id_or_email: subject,
+    user_name: userName,
     created_at: now,
     updated_at: now,
     expires_at: expiresAt,

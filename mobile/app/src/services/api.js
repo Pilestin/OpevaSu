@@ -69,12 +69,11 @@ export const authApi = {
       body: JSON.stringify(payload),
     });
   },
-  loginDriver: ({ userIdOrEmail, password }) => {
-    const payload = { user_id_or_email: userIdOrEmail };
-    if (password) {
-      payload.password = password;
-    }
-
+  loginDriver: ({ userName, password }) => {
+    const payload = {
+      user_name: userName,
+      password,
+    };
     return request("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
