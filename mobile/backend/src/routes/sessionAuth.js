@@ -1,7 +1,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const { getDb } = require("../db");
-const { verifyPassword } = require("../utils/password");
+const { findDriverUserByUserName } = require("../driverDb");
 const { sanitizeUser } = require("../utils/serializers");
 const { requireAuth } = require("../middleware/auth");
 
@@ -15,39 +15,23 @@ function buildSessionUser(user) {
 router.post("/login", async (req, res) => {
   const rawUserName = req.body?.user_name;
   const userName = typeof rawUserName === "string" ? rawUserName.trim() : "";
-  const password = req.body?.password;
   if (!userName) {
     return res.status(400).json({ detail: "user_name zorunlu." });
   }
 
-  if (!password) {
-    return res.status(400).json({ detail: "password zorunlu." });
-  }
-
   const db = getDb();
-  const user = await db.collection("Users").findOne({ user_name: userName });
-
-  const storedPassword = user?.password || user?.password_hash;
+  const user = await findDriverUserByUserName(userName);
   if (!user) {
-    return res.status(401).json({ detail: "Gecersiz kullanici bilgileri" });
-  }
-
-  if (!verifyPassword(password, storedPassword)) {
-    return res.status(401).json({ detail: "Gecersiz kullanici bilgileri" });
+    return res.status(401).json({ detail: "Driver kullanicisi bulunamadi." });
   }
 
   const safeUser = buildSessionUser(user);
-  const subject = safeUser.user_id || safeUser.email;
-  if (!subject) {
-    return res.status(500).json({ detail: "Kullanici kaydi hatali: user_id/email yok." });
-  }
 
   const now = new Date();
   const sessionId = crypto.randomUUID();
   const expiresAt = new Date(now.getTime() + SESSION_DURATION_MS);
   await db.collection("AuthSessions").insertOne({
     session_id: sessionId,
-    user_id_or_email: subject,
     user_name: userName,
     created_at: now,
     updated_at: now,
@@ -77,10 +61,7 @@ router.get("/me/:sessionId", async (req, res) => {
     return res.status(401).json({ detail: "Session suresi dolmus." });
   }
 
-  const userLookup = String(session.user_id_or_email || "").trim();
-  const user = await db.collection("Users").findOne({
-    $or: [{ user_id: userLookup }, { email: userLookup }, { email: userLookup.toLowerCase() }],
-  });
+  const user = await findDriverUserByUserName(session.user_name);
   if (!user) {
     return res.status(404).json({ detail: "Kullanici bulunamadi." });
   }

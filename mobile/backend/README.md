@@ -17,12 +17,19 @@ npm install
 PORT=3001
 MONGODB_URI=mongodb://username:password@hostname:port/database
 MONGO_DB_NAME=RouteManagementDB
+DB_HOST=157.230.17.89
+DB_PORT=3307
+DB_USER=remoteuser
+DB_PASSWORD=opevaDB2028
+DB_NAME=fleetmanagementdb
 JWT_SECRET=change-me-mobile-backend-min-32-chars
 JWT_EXPIRES_IN=60m
 ALLOW_PASSWORDLESS_LOGIN=true
 ```
 
 `ALLOW_PASSWORDLESS_LOGIN=true` oldugunda sadece `user_id_or_email` ile giris yapilabilir (development icin).
+
+Driver girisi ayrik `/api/auth/login` endpoint'i ile calisir ve `users` tablosundan sadece `role_authority_level = Driver` kayitlarini `user_name` alanina gore dogrular.
 
 ## Calistirma
 

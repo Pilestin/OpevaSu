@@ -18,18 +18,17 @@ const appLogo = require("../../assets/opeva-logo-2.png");
 export default function DriverLoginScreen({ navigation }) {
   const { loginDriver } = useAuth();
   const [userName, setUserName] = useState("");
-  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async () => {
-    if (!userName || !password) {
-      Alert.alert("Eksik bilgi", "Driver kullanici adi ve sifre zorunlu.");
+    if (!userName) {
+      Alert.alert("Eksik bilgi", "Driver kullanici adi zorunlu.");
       return;
     }
 
     try {
       setSubmitting(true);
-      await loginDriver({ userName, password });
+      await loginDriver({ userName });
     } catch (error) {
       Alert.alert("Driver girisi basarisiz", error.message);
     } finally {
@@ -53,7 +52,7 @@ export default function DriverLoginScreen({ navigation }) {
 
         <View style={styles.card}>
           <Text style={styles.title}>Driver girisi</Text>
-          <Text style={styles.subtitle}>Bu ekran sadece driver hesaplari icindir.</Text>
+          <Text style={styles.subtitle}>Bu ekran sadece driver hesaplari icindir. Kullanici adi ile devam edebilirsiniz.</Text>
 
           <TextInput
             style={styles.input}
@@ -62,15 +61,6 @@ export default function DriverLoginScreen({ navigation }) {
             autoCapitalize="none"
             value={userName}
             onChangeText={setUserName}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Sifre"
-            placeholderTextColor={colors.muted}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
           />
 
           <Pressable style={[styles.button, submitting && styles.buttonDisabled]} onPress={onSubmit} disabled={submitting}>

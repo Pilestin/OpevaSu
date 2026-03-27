@@ -74,8 +74,8 @@ export function AuthProvider({ children }) {
     ]);
   };
 
-  const loginDriver = async ({ userName, password }) => {
-    const response = await authApi.loginDriver({ userName, password });
+  const loginDriver = async ({ userName }) => {
+    const response = await authApi.loginDriver({ userName });
     const normalizedRole = String(response?.user?.role || "").toLowerCase();
     if (normalizedRole !== "driver") {
       throw new Error("Bu hesap driver rolune uygun degil.");

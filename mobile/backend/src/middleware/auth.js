@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const config = require("../config");
 const { getDb } = require("../db");
+const { findDriverUserByUserName } = require("../driverDb");
 const { sanitizeUser } = require("../utils/serializers");
 
 async function requireAuth(req, res, next) {
@@ -51,10 +52,7 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ detail: "Session suresi dolmus." });
     }
 
-    const userLookup = String(session.user_id_or_email || "").trim();
-    const user = await db.collection("Users").findOne({
-      $or: [{ user_id: userLookup }, { email: userLookup }, { email: userLookup.toLowerCase() }],
-    });
+    const user = await findDriverUserByUserName(session.user_name);
     if (!user) {
       return res.status(401).json({ detail: "Session kullanicisi bulunamadi." });
     }
