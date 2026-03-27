@@ -7,6 +7,7 @@ const productsRoutes = require("./routes/products");
 const usersRoutes = require("./routes/users");
 const routesRoutes = require("./routes/routes");
 const driverLocationsRoutes = require("./routes/driverLocations");
+const driverProgressRoutes = require("./routes/driverProgress");
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use("/products", productsRoutes);
 app.use("/users", usersRoutes);
 app.use("/routes", routesRoutes);
 app.use("/driver-locations", driverLocationsRoutes);
+app.use("/driver-progress", driverProgressRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

@@ -104,6 +104,8 @@ export default function DriverScreen() {
   const [startingTracking, setStartingTracking] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
+  const [lastMatchedStop, setLastMatchedStop] = useState(null);
+  const [lastDeliveryUpdateCount, setLastDeliveryUpdateCount] = useState(0);
   const canUseDriverPanel = ["driver", "admin"].includes(user?.role);
   const mapRef = useRef(null);
   const locationSubscriptionRef = useRef(null);
@@ -150,6 +152,11 @@ export default function DriverScreen() {
   const routeCoordinates = useMemo(() => buildRoutePath(selectedRoute), [selectedRoute]);
   const mapRegion = useMemo(() => getMapRegion(routeCoordinates), [routeCoordinates]);
 
+  useEffect(() => {
+    setLastMatchedStop(null);
+    setLastDeliveryUpdateCount(0);
+  }, [selectedRouteId]);
+
   const stopTracking = useCallback(() => {
     if (locationSubscriptionRef.current) {
       locationSubscriptionRef.current.remove();
@@ -168,21 +175,36 @@ export default function DriverScreen() {
       setPublishing(true);
 
       try {
+        const basePayload = {
+          driver_id: user?.user_id || user?.email,
+          driver_name: user?.full_name,
+          route_id: String(selectedRoute.id || ""),
+          route_name: String(selectedRoute.name || ""),
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          accuracy: location.coords.accuracy,
+          heading: location.coords.heading,
+          speed: location.coords.speed,
+          timestamp: location.timestamp ? new Date(location.timestamp).toISOString() : new Date().toISOString(),
+        };
+
         await driverTrackingApi.publish({
           token,
+          payload: basePayload,
+        });
+
+        const evaluation = await driverTrackingApi.evaluate({
+          token,
           payload: {
-            driver_id: user?.user_id || user?.email,
-            driver_name: user?.full_name,
-            route_id: String(selectedRoute.id || ""),
-            route_name: String(selectedRoute.name || ""),
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            accuracy: location.coords.accuracy,
-            heading: location.coords.heading,
-            speed: location.coords.speed,
-            timestamp: location.timestamp ? new Date(location.timestamp).toISOString() : new Date().toISOString(),
+            ...basePayload,
+            radius_meters: 35,
           },
         });
+
+        if (evaluation?.matched) {
+          setLastMatchedStop(evaluation.matched_stop || null);
+          setLastDeliveryUpdateCount(Number(evaluation.updated_count || 0));
+        }
       } catch (error) {
         console.warn("Driver location publish failed:", error?.message || error);
       } finally {
@@ -341,6 +363,11 @@ export default function DriverScreen() {
           <Text style={styles.overlayMeta}>
             Takip: {trackingEnabled ? "Acik" : "Kapali"} {publishing ? "| Yayinlaniyor" : ""}
           </Text>
+          {lastMatchedStop ? (
+            <Text style={styles.overlayMeta}>
+              Son eslesen nokta: {lastMatchedStop.delivery_point_id} | {lastMatchedStop.distance_meters} m | {lastDeliveryUpdateCount} siparis guncellendi
+            </Text>
+          ) : null}
 
           <View style={styles.actionsRow}>
             <Pressable

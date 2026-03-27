@@ -144,6 +144,15 @@ export const driverTrackingApi = {
       },
       body: JSON.stringify(payload),
     }),
+  evaluate: ({ token, payload }) =>
+    request("/driver-progress/evaluate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    }),
 };
 
 export const profileApi = {
