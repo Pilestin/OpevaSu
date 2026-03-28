@@ -243,6 +243,7 @@ export default function DriverScreen() {
   const [completingStopId, setCompletingStopId] = useState("");
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [isTopOverlayExpanded, setIsTopOverlayExpanded] = useState(true);
+  const [isMapReady, setIsMapReady] = useState(false);
   const canUseDriverPanel = ["driver", "admin"].includes(user?.role);
   const mapRef = useRef(null);
   const locationSubscriptionRef = useRef(null);
@@ -319,6 +320,7 @@ export default function DriverScreen() {
     setFollowDriver(true);
     setIsSheetExpanded(false);
     setIsTopOverlayExpanded(true);
+    setIsMapReady(false);
   }, [selectedRouteId]);
 
   const markStopCompletedLocally = useCallback((deliveryPointId) => {
@@ -362,20 +364,19 @@ export default function DriverScreen() {
   }, [selectedRouteId]);
 
   const animateToDriver = useCallback(
-    (coordinate, heading = 0) => {
-      if (!mapRef.current || !coordinate || !followDriver) return;
-      mapRef.current.animateCamera(
+    (coordinate) => {
+      if (!mapRef.current || !coordinate || !followDriver || !isMapReady) return;
+      mapRef.current.animateToRegion(
         {
-          center: coordinate,
-          heading: Number.isFinite(heading) ? heading : 0,
-          pitch: 52,
-          zoom: 17,
-          altitude: 600,
+          latitude: coordinate.latitude,
+          longitude: coordinate.longitude,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
         },
-        { duration: 600 }
+        500
       );
     },
-    [followDriver]
+    [followDriver, isMapReady]
   );
 
   const stopTracking = useCallback(() => {
@@ -458,7 +459,7 @@ export default function DriverScreen() {
         longitude: nextLocation.coords.longitude,
       };
       setTraveledCoordinates((previous) => appendTravelCoordinate(previous, nextCoordinate));
-      animateToDriver(nextCoordinate, nextLocation.coords.heading);
+      animateToDriver(nextCoordinate);
       await publishLocation(nextLocation);
     },
     [animateToDriver, publishLocation]
@@ -574,9 +575,9 @@ export default function DriverScreen() {
   }, [currentStep, selectedRoute, startTracking, trackingEnabled]);
 
   useEffect(() => {
-    if (currentStep !== "map" || !routeCoordinates.length || !mapRef.current || currentCoordinate) return;
+    if (currentStep !== "map" || !routeCoordinates.length || !mapRef.current || currentCoordinate || !isMapReady) return;
     mapRef.current.animateToRegion(mapRegion, 500);
-  }, [currentCoordinate, currentStep, mapRegion, routeCoordinates]);
+  }, [currentCoordinate, currentStep, isMapReady, mapRegion, routeCoordinates]);
 
   if (!canUseDriverPanel) {
     return (
@@ -600,7 +601,12 @@ export default function DriverScreen() {
 
     return (
         <View style={styles.mapScreen}>
-          <MapView ref={mapRef} style={styles.map} initialRegion={mapRegion}>
+          <MapView
+            ref={mapRef}
+            style={styles.map}
+            initialRegion={mapRegion}
+            onMapReady={() => setIsMapReady(true)}
+          >
             {routeCoordinates.length > 1 ? (
               <Polyline coordinates={routeCoordinates} strokeColor="rgba(148, 163, 184, 0.35)" strokeWidth={6} />
             ) : null}
@@ -724,8 +730,8 @@ export default function DriverScreen() {
                   style={styles.miniPill}
                   onPress={() => {
                     if (currentCoordinate) {
-                      animateToDriver(currentCoordinate, currentLocation?.coords?.heading);
-                    } else if (mapRef.current) {
+                      animateToDriver(currentCoordinate);
+                    } else if (mapRef.current && isMapReady) {
                       mapRef.current.animateToRegion(mapRegion, 500);
                     }
                   }}
@@ -817,10 +823,15 @@ export default function DriverScreen() {
                       style={[styles.stopActionButton, styles.focusButton]}
                       onPress={() => {
                         setActiveStopId(stop.id);
-                        if (stop.coordinate && mapRef.current) {
-                          mapRef.current.animateCamera(
-                            { center: stop.coordinate, zoom: 17, pitch: 35, heading: currentLocation?.coords?.heading || 0 },
-                            { duration: 450 }
+                        if (stop.coordinate && mapRef.current && isMapReady) {
+                          mapRef.current.animateToRegion(
+                            {
+                              latitude: stop.coordinate.latitude,
+                              longitude: stop.coordinate.longitude,
+                              latitudeDelta: 0.008,
+                              longitudeDelta: 0.008,
+                            },
+                            450
                           );
                         }
                       }}
