@@ -2,6 +2,8 @@ const express = require("express");
 const config = require("../config");
 const { getDb } = require("../db");
 const { requireAuth } = require("../middleware/auth");
+const { publishLiveEvent } = require("../liveDeliveryHub");
+const { appendCompletedPoint } = require("../liveDeliveryState");
 
 const router = express.Router();
 const ORDER_COLLECTIONS = ["Orders", "Orders_S"];
@@ -231,6 +233,26 @@ router.post("/evaluate", requireAuth, async (req, res) => {
     action: "gps_match",
   });
 
+  await appendCompletedPoint(db, {
+    driver_id: String(req.body?.driver_id || actorId),
+    driver_name: String(req.body?.driver_name || req.user.full_name || "").trim(),
+    route_id: routeId,
+    route_name: String(route?.name || "").trim(),
+    delivery_point_id: matchedStop.delivery_point_id,
+    updated_count: updatedCount,
+    completion_source: "gps_match",
+  });
+
+  publishLiveEvent({
+    type: "delivery_completed",
+    driver_id: String(req.body?.driver_id || actorId),
+    route_id: routeId,
+    route_name: String(route?.name || "").trim(),
+    delivery_point_id: matchedStop.delivery_point_id,
+    updated_count: updatedCount,
+    completion_source: "gps_match",
+  });
+
   return res.json({
     matched: true,
     matched_stop: matchedStop,
@@ -285,6 +307,26 @@ router.post("/complete", requireAuth, async (req, res) => {
     latitude,
     longitude,
     action: "manual_complete",
+  });
+
+  await appendCompletedPoint(db, {
+    driver_id: String(req.body?.driver_id || actorId),
+    driver_name: String(req.body?.driver_name || req.user.full_name || "").trim(),
+    route_id: routeId,
+    route_name: String(route?.name || "").trim(),
+    delivery_point_id: matchedStop.delivery_point_id,
+    updated_count: updatedCount,
+    completion_source: "manual_driver_confirm",
+  });
+
+  publishLiveEvent({
+    type: "delivery_completed",
+    driver_id: String(req.body?.driver_id || actorId),
+    route_id: routeId,
+    route_name: String(route?.name || "").trim(),
+    delivery_point_id: matchedStop.delivery_point_id,
+    updated_count: updatedCount,
+    completion_source: "manual_driver_confirm",
   });
 
   return res.json({

@@ -15,7 +15,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
-import { driverTrackingApi, routesApi } from "../services/api";
+import { driverTrackingApi, liveDeliveryApi, routesApi } from "../services/api";
 import { colors, radii, shadows } from "../theme";
 
 function getCoordinate(node) {
@@ -380,7 +380,19 @@ export default function DriverScreen() {
       locationSubscriptionRef.current = null;
     }
     setTrackingEnabled(false);
-  }, []);
+
+    if (selectedRoute && token) {
+      liveDeliveryApi.endSession({
+        token,
+        payload: {
+          driver_id: user?.user_id || user?.email || user?.user_name,
+          route_id: String(selectedRoute.id || ""),
+        },
+      }).catch((error) => {
+        console.warn("Delivery session end failed:", error?.message || error);
+      });
+    }
+  }, [selectedRoute, token, user]);
 
   const publishLocation = useCallback(
     async (location) => {
@@ -464,6 +476,16 @@ export default function DriverScreen() {
         locationSubscriptionRef.current = null;
       }
 
+      await liveDeliveryApi.startSession({
+        token,
+        payload: {
+          driver_id: user?.user_id || user?.email || user?.user_name,
+          driver_name: user?.full_name || [user?.name, user?.last_name].filter(Boolean).join(" ") || user?.user_name,
+          route_id: String(selectedRoute.id || ""),
+          route_name: String(selectedRoute.name || ""),
+        },
+      });
+
       const current = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
@@ -486,7 +508,7 @@ export default function DriverScreen() {
     } finally {
       setStartingTracking(false);
     }
-  }, [handleLocationUpdate, selectedRoute]);
+  }, [handleLocationUpdate, selectedRoute, token, user]);
 
   const completeStop = useCallback(
     async (stop) => {

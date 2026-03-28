@@ -1,6 +1,8 @@
 const express = require("express");
 const { getDb } = require("../db");
 const { requireAuth } = require("../middleware/auth");
+const { publishLiveEvent } = require("../liveDeliveryHub");
+const { updateSessionLocation } = require("../liveDeliveryState");
 
 const router = express.Router();
 
@@ -85,6 +87,22 @@ router.post("/", requireAuth, async (req, res) => {
     document,
     { upsert: true }
   );
+
+  await updateSessionLocation(db, document);
+  publishLiveEvent({
+    type: "driver_location_updated",
+    driver_id: document.driver_id,
+    driver_name: document.driver_name,
+    route_id: document.route_id,
+    route_name: document.route_name,
+    location: {
+      latitude: document.latitude,
+      longitude: document.longitude,
+      heading: document.heading,
+      speed: document.speed,
+      timestamp: document.timestamp,
+    },
+  });
 
   return res.status(201).json({ location: document });
 });

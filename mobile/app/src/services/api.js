@@ -176,6 +176,21 @@ export const driverTrackingApi = {
     }),
 };
 
+export const liveDeliveryApi = {
+  startSession: ({ token, payload }) =>
+    request("/live-delivery/session/start", {
+      method: "POST",
+      headers: buildAuthHeaders(token, { "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    }),
+  endSession: ({ token, payload }) =>
+    request("/live-delivery/session/end", {
+      method: "POST",
+      headers: buildAuthHeaders(token, { "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    }),
+};
+
 export const profileApi = {
   get: ({ token, userId }) =>
     request(`/profile/${encodeURIComponent(userId)}`, {
