@@ -1,5 +1,7 @@
+const path = require("path");
 const dotenv = require("dotenv");
 
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 dotenv.config();
 
 function parseBoolean(value, fallback = false) {
@@ -14,9 +16,15 @@ const config = {
   port: Number(process.env.PORT || 3001),
   mongoUri: process.env.MONGODB_URI || process.env.MONGO_URI,
   mongoDbName: process.env.MONGO_DB_NAME || "RouteManagementDB",
+  driverDbHost: process.env.DB_HOST || "",
+  driverDbPort: Number(process.env.DB_PORT || 3306),
+  driverDbUser: process.env.DB_USER || "",
+  driverDbPassword: process.env.DB_PASSWORD || "",
+  driverDbName: process.env.DB_NAME || "",
   jwtSecret: process.env.JWT_SECRET || "change-me-mobile-backend-min-32-chars",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "60m",
   allowPasswordlessLogin: parseBoolean(process.env.ALLOW_PASSWORDLESS_LOGIN, true),
+  remoteFleetApiBaseUrl: String(process.env.REMOTE_FLEET_API_BASE_URL || "").replace(/\/+$/, ""),
 };
 
 module.exports = config;

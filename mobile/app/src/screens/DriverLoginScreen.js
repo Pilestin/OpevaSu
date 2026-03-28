@@ -15,22 +15,22 @@ import { colors, radii, shadows } from "../theme";
 
 const appLogo = require("../../assets/opeva-logo-2.png");
 
-export default function LoginScreen({ navigation }) {
-  const { login } = useAuth();
-  const [userIdOrEmail, setUserIdOrEmail] = useState("");
+export default function DriverLoginScreen({ navigation }) {
+  const { loginDriver } = useAuth();
+  const [userName, setUserName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async () => {
-    if (!userIdOrEmail) {
-      Alert.alert("Eksik bilgi", "Kullanici ID veya e-posta zorunlu.");
+    if (!userName) {
+      Alert.alert("Eksik bilgi", "Driver kullanici adi zorunlu.");
       return;
     }
 
     try {
       setSubmitting(true);
-      await login({ userIdOrEmail });
+      await loginDriver({ userName });
     } catch (error) {
-      Alert.alert("Giris basarisiz", error.message);
+      Alert.alert("Driver girisi basarisiz", error.message);
     } finally {
       setSubmitting(false);
     }
@@ -47,32 +47,28 @@ export default function LoginScreen({ navigation }) {
         <View style={styles.brand}>
           <Image source={appLogo} style={styles.logoImage} resizeMode="contain" />
           <Text style={styles.logo}>OPEVA</Text>
-          <Text style={styles.brandText}>Su Siparis Mobil</Text>
+          <Text style={styles.brandText}>Driver Girisi</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.title}>Hos geldiniz</Text>
-          <Text style={styles.subtitle}>Devam etmek icin kullanici ID veya e-posta girin.</Text>
+          <Text style={styles.title}>Driver girisi</Text>
+          <Text style={styles.subtitle}>Bu ekran sadece driver hesaplari icindir. Kullanici adi ile devam edebilirsiniz.</Text>
 
           <TextInput
             style={styles.input}
-            placeholder="Kullanici ID veya E-posta"
+            placeholder="Driver kullanici adi"
             placeholderTextColor={colors.muted}
             autoCapitalize="none"
-            value={userIdOrEmail}
-            onChangeText={setUserIdOrEmail}
+            value={userName}
+            onChangeText={setUserName}
           />
 
-          <Pressable
-            style={[styles.button, submitting && styles.buttonDisabled]}
-            onPress={onSubmit}
-            disabled={submitting}
-          >
-            <Text style={styles.buttonText}>{submitting ? "Giris yapiliyor..." : "Giris Yap"}</Text>
+          <Pressable style={[styles.button, submitting && styles.buttonDisabled]} onPress={onSubmit} disabled={submitting}>
+            <Text style={styles.buttonText}>{submitting ? "Driver girisi yapiliyor..." : "Driver Olarak Giris Yap"}</Text>
           </Pressable>
 
-          <Pressable style={styles.driverLink} onPress={() => navigation.navigate("DriverLogin")} disabled={submitting}>
-            <Text style={styles.driverLinkText}>Driver olarak giris yapmak icin ayri ekrana gec</Text>
+          <Pressable style={styles.secondaryButton} onPress={() => navigation.goBack()} disabled={submitting}>
+            <Text style={styles.secondaryButtonText}>Normal girise don</Text>
           </Pressable>
         </View>
       </View>
@@ -171,12 +167,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.3,
   },
-  driverLink: {
-    paddingVertical: 8,
+  secondaryButton: {
+    borderRadius: radii.md,
+    paddingVertical: 13,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#f8fafc",
   },
-  driverLinkText: {
-    color: colors.primary,
+  secondaryButtonText: {
+    color: colors.text,
     fontWeight: "700",
   },
 });

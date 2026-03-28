@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Helper App</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div id="sidebar">
+        <h2>Route Builder</h2>
+        <div class="form-group">
+            <label for="routeName">Route Name:</label>
+            <input type="text" id="routeName" value="Generated_Route_1">
+        </div>
+        
+        <div class="info-panel">
+            <p><strong>Instructions:</strong></p>
+            <ol>
+                <li>Click on the map to add points.</li>
+                <li><strong>1st Point</strong> = Start Depot</li>
+                <li><strong>Last Point</strong> = End Depot</li>
+                <li><strong>Intermediate Points</strong> = Deliveries</li>
+            </ol>
+            <p style="font-size: 0.8em; margin-bottom: 10px; color: #555;"><i>Note: The type of a point updates dynamically as you continue to add/remove points on the map.</i></p>
+            <button id="clearBtn">Clear Map</button>
+            <button id="calcRouteBtn">Calculate Route</button>
+            <button id="exportBtn" disabled>Export JSON</button>
+        </div>
+
+        <div id="statusList">
+            <h3>Points <span id="pointCount">(0)</span></h3>
+            <ul id="pointsList"></ul>
+        </div>
+    </div>
+    
+    <div id="map"></div>
+
+    <!-- Edit Point Modal -->
+    <div id="editModal" class="modal">
+      <div class="modal-content">
+        <h3>Edit Point Details</h3>
+        <div id="pointTypeLabel" style="margin-bottom: 15px; font-weight: bold; color: #007bff;"></div>
+        
+        <input type="hidden" id="editIndex">
+        <div class="form-group"><label>Point ID:</label><input type="text" id="editId"></div>
+        
+        <div id="deliveryFields">
+            <h4 style="margin: 10px 0 5px 0;">Delivery Customer Request</h4>
+            <div class="form-group"><label>Product ID:</label><input type="text" id="editProductId"></div>
+            <div class="form-group"><label>Product Name:</label><input type="text" id="editProductName"></div>
+            <div class="form-group"><label>Ready Time (min):</label><input type="number" id="editReadyTime"></div>
+            <div class="form-group"><label>Due Date (min):</label><input type="number" id="editDueDate"></div>
+            <div class="form-group"><label>Service Time (min):</label><input type="number" id="editServiceTime"></div>
+            <div class="form-group"><label>Status:</label><input type="text" id="editStatus"></div>
+            <div class="form-group"><label>Weight:</label><input type="number" id="editWeight"></div>
+            <div class="form-group"><label>Quantity:</label><input type="number" id="editQuantity"></div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button id="saveEditBtn">Save Changes</button>
+            <button id="cancelEditBtn" class="secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaflet & App JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

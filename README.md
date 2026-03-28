@@ -1,72 +1,108 @@
-﻿# MongoDB TabanlÄ± SipariÅŸ YÃ¶netim UygulamasÄ±
+﻿# OpevaSu - MongoDB Tabanlı Sipariş Yönetim Uygulaması
 
-Bu uygulama, MongoDB veritabanÄ± kullanarak kimlik doÄŸrulama ve sipariÅŸ yÃ¶netimi iÅŸlemlerini gerÃ§ekleÅŸtiren bir Streamlit web uygulamasÄ±dÄ±r.
+Bu uygulama, MongoDB veritabanı kullanarak kimlik doğrulama ve sipariş yönetimi işlemlerini gerçekleştiren bir Streamlit web ve React Native (Expo) mobil uygulamasıdır. Açık kaynaklı OPEVA projesinin bir parçası olarak geliştirilmektedir.
 
-## Ã–zellikler
+## Özellikler
 
-- KullanÄ±cÄ± kimlik doÄŸrulama (MongoDB users koleksiyonu ile)
-- SipariÅŸ oluÅŸturma ve kaydetme
-- Tarih ve saat seÃ§imi
+- Kullanıcı kimlik doğrulama (MongoDB `users` koleksiyonu ile)
+- Sipariş oluşturma ve kaydetme
+- Tarih ve saat seçimi
+- Yönetici (Admin) paneli üzerinden kullanıcı ve sipariş takibi
+- Mobil uyumlu API ve cihaz uygulaması
+- Rota planlama ve waypoint hesaplama aracı (Route Helper App)
 
-## Kurulum
+---
 
-1. Gerekli kÃ¼tÃ¼phaneleri yÃ¼kleyin:
+## 🗺️ Route Helper App (Rota Harita Uygulaması)
+
+Oluşturulan siparişlerin teslimat noktalarını harita üzerinden pratik bir şekilde seçip gerçek yollar üzerinden (OSRM destekli) rota oluşturmanızı sağlayan statik bir web aracıdır. Başlangıç, bitiş ve teslimat noktaları ekleyebilir, bu rotayı sistemin okuduğu özel `json` formatında dışarıya aktarabilirsiniz.
+
+🌍 **Canlı Demo (GitHub Pages):** [https://pilestin.github.io/OpevaSu/helper_route_app/](https://pilestin.github.io/OpevaSu/helper_route_app/)
+
+---
+
+## Kurulum (Web Uygulaması)
+
+1. Gerekli Python kütüphanelerini yükleyin:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-2. MongoDB'nin kurulu ve Ã§alÄ±ÅŸÄ±yor olduÄŸundan emin olun.
+2. MongoDB'nin kurulu ve çalışıyor olduğundan emin olun.
 
-3. Ã–rnek veritabanÄ±nÄ± kurun:
+3. Örnek veritabanını kurun:
 
 ```bash
 python setup_db.py
 ```
 
-4. UygulamayÄ± Ã§alÄ±ÅŸtÄ±rÄ±n:
+4. Uygulamayı çalıştırın:
 
 ```bash
 streamlit run app.py
 ```
 
-## KullanÄ±m
+## Kullanım
 
-- GiriÅŸ sayfasÄ±nda kullanÄ±cÄ± ID'nizi girin (Ã¶rn. "user1", "user2" veya "admin")
-- Åifre alanÄ±na "123" yazÄ±n
-- GiriÅŸ yaptÄ±ktan sonra sipariÅŸ adetini ve tarih/saati seÃ§erek yeni sipariÅŸ oluÅŸturabilirsiniz
+- Giriş sayfasında kullanıcı ID'nizi girin (örn. "user1", "user2" veya "admin")
+- Şifre alanına "123" yazın (Geliştirme süreci içindir)
+- Giriş yaptıktan sonra sipariş adetini ve tarih/saati seçerek yeni sipariş oluşturabilirsiniz.
 
-## VeritabanÄ± YapÄ±sÄ±
+## Veritabanı Yapısı
 
-- **users**: KullanÄ±cÄ± bilgilerini iÃ§eren koleksiyon
-- **orders**: SipariÅŸ bilgilerini iÃ§eren koleksiyon
+- **users**: Kullanıcı bilgilerini içeren koleksiyon.
+- **orders**: Sipariş bilgilerini içeren koleksiyon.
 
-## GeliÅŸtirme NotlarÄ±
+## Mobile Backend (Node.js)
 
-- Bu uygulama demonstrasyon amaÃ§lÄ±dÄ±r ve gerÃ§ek ortamda kullanÄ±lmadan Ã¶nce gÃ¼venlik iyileÅŸtirmeleri yapÄ±lmalÄ±dÄ±r
-- Åifre doÄŸrulamasÄ± ÅŸu anda basit bir kontrol ile yapÄ±lmaktadÄ±r, gerÃ§ek uygulamalarda hash ve tuz kullanÄ±lmalÄ±dÄ±r
+Mobil istemci Python API yerine `mobile/backend/` servisine bağlanır.
 
-## Uygulama GÃ¶rselleri 
+Ortam değişkenleri (`mobile/backend/.env`):
+- `MONGODB_URI`
+- `MONGO_DB_NAME`
+- `JWT_SECRET`
+- `JWT_EXPIRES_IN`
 
+Çalıştırmak için:
+```bash
+cd mobile/backend
+npm install
+npm run dev
+```
 
-<h2>Uygulama GÃ¶rselleri</h2>
+Mobil app ve mobile backend ortak olarak repo kökündeki `.env` dosyasını kullanır:
+- `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001`
+- `EXPO_PUBLIC_FLEET_VEHICLES_URL=http://127.0.0.1:3001/api/vehicles/locations/fiware`
+- `REMOTE_FLEET_API_BASE_URL=http://127.0.0.1:3001/api`
+
+## Geliştirme Notları
+
+- Bu uygulama demonstrasyon amaçlıdır ve gerçek ortamda kullanılmadan önce güvenlik iyileştirmeleri yapılmalıdır.
+- Şifre doğrulaması şu anda basit bir kontrol ile yapılmaktadır, gerçek uygulamalarda hash ve tuz kullanılmalıdır.
+
+---
+
+## Uygulama Görselleri 
+
+<h3>Web Uygulama Görselleri</h3>
 
 <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: start;">
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots_v2/Screenshot_1.png" alt="GiriÅŸ SayfasÄ±" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">GiriÅŸ SayfasÄ±</p>
+    <img src="assets/screenshots_v2/Screenshot_1.png" alt="Giriş Sayfası" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">Giriş Sayfası</p>
   </div>
   <div style="flex: 0 0 48%;">
     <img src="assets/screenshots_v2/Screenshot_2.png" alt="Ana Sayfa" style="width: 100%;">
     <p style="text-align:center; font-size:14px;">Ana Sayfa</p>
   </div>
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots_v2/Screenshot_3.png" alt="SipariÅŸ OluÅŸturma" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">SipariÅŸ OluÅŸturma</p>
+    <img src="assets/screenshots_v2/Screenshot_3.png" alt="Sipariş Oluşturma" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">Sipariş Oluşturma</p>
   </div>
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots_v2/Screenshot_5.png" alt="SipariÅŸ OluÅŸturma 2" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">SipariÅŸ OluÅŸturma 2</p>
+    <img src="assets/screenshots_v2/Screenshot_5.png" alt="Sipariş Oluşturma 2" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">Sipariş Oluşturma 2</p>
   </div>
   <div style="flex: 0 0 48%;">
     <img src="assets/screenshots_v2/Screenshot_6.png" alt="Profil Bilgileri" style="width: 100%;">
@@ -74,45 +110,19 @@ streamlit run app.py
   </div>
 </div>
 
-<h3>Admin SayfalarÄ±</h3>
+<h3>Admin Sayfaları</h3>
 
 <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: start;">
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots_v2/admin_1.png" alt="Admin SayfasÄ±" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">Admin SayfasÄ±</p>
+    <img src="assets/screenshots_v2/admin_1.png" alt="Admin Sayfası" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">Admin Sayfası</p>
   </div>
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots_v2/admin_2.png" alt="Admin - KullanÄ±cÄ± Listesi" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">KullanÄ±cÄ± Listesi</p>
+    <img src="assets/screenshots_v2/admin_2.png" alt="Admin - Kullanıcı Listesi" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">Kullanıcı Listesi</p>
   </div>
   <div style="flex: 0 0 48%;">
-    <img src="assets/screenshots/Screenshot_6.png" alt="Admin - SipariÅŸ Listesi" style="width: 100%;">
-    <p style="text-align:center; font-size:14px;">SipariÅŸ Listesi</p>
+    <img src="assets/screenshots/Screenshot_6.png" alt="Admin - Sipariş Listesi" style="width: 100%;">
+    <p style="text-align:center; font-size:14px;">Sipariş Listesi</p>
   </div>
 </div>
-
-
-
-## KatkÄ±da Bulunanlar
-
-
-
-
-
-## Mobile Backend (Node.js)
-
-Mobil istemci Python API yerine `mobile/backend/` servisine baglanir.
-
-Ortam degiskenleri (`mobile/backend/.env`):
-- `MONGODB_URI`
-- `MONGO_DB_NAME`
-- `JWT_SECRET`
-- `JWT_EXPIRES_IN`
-
-Calistirma:
-- cd mobile/backend
-- npm install
-- npm run dev
-
-Mobil app (`mobile/app/.env`):
-- `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3001`

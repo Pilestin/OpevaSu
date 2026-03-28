@@ -1,3 +1,5 @@
+import { runtimeConfig } from "../config/runtimeConfig";
+
 function resolveApiBaseUrl(rawValue) {
   const trimmed = typeof rawValue === "string" ? rawValue.trim().replace(/^['"]|['"]$/g, "") : "";
   if (!trimmed) {
@@ -22,7 +24,7 @@ function resolveApiBaseUrl(rawValue) {
   return { value: normalized, error: "" };
 }
 
-const API_BASE_URL_RESOLUTION = resolveApiBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
+const API_BASE_URL_RESOLUTION = resolveApiBaseUrl(runtimeConfig.apiBaseUrl);
 
 async function request(path, options = {}) {
   if (API_BASE_URL_RESOLUTION.error) {
@@ -47,6 +49,13 @@ async function request(path, options = {}) {
   return body;
 }
 
+function buildAuthHeaders(authHeader, extras = {}) {
+  return {
+    ...extras,
+    Authorization: authHeader,
+  };
+}
+
 export const authApi = {
   login: ({ userIdOrEmail, password }) => {
     const payload = { user_id_or_email: userIdOrEmail };
@@ -60,6 +69,27 @@ export const authApi = {
       body: JSON.stringify(payload),
     });
   },
+  loginDriver: ({ userName }) => {
+    const payload = {
+      user_name: userName,
+    };
+    return request("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+  me: ({ sessionId }) =>
+    request(`/api/auth/me/${encodeURIComponent(sessionId)}`),
+  listUsers: ({ sessionId }) =>
+    request("/api/auth/users", {
+      headers: buildAuthHeaders(`Session ${sessionId}`),
+    }),
+  logout: ({ sessionId }) =>
+    request("/api/auth/logout", {
+      method: "POST",
+      headers: buildAuthHeaders(`Session ${sessionId}`),
+    }),
 };
 
 export const ordersApi = {
@@ -70,69 +100,85 @@ export const ordersApi = {
     if (userId) params.set("user_id", userId);
     const query = params.toString() ? `?${params.toString()}` : "";
     return request(`/orders${query}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildAuthHeaders(token),
     });
   },
   create: ({ token, order }) =>
     request("/orders", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: buildAuthHeaders(token, { "Content-Type": "application/json" }),
       body: JSON.stringify({ order }),
     }),
   update: ({ token, orderId, updates }) =>
     request(`/orders/${encodeURIComponent(orderId)}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: buildAuthHeaders(token, { "Content-Type": "application/json" }),
       body: JSON.stringify({ updates }),
     }),
   bulkCreate: ({ token, orders }) =>
     request("/orders/bulk", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: buildAuthHeaders(token, { "Content-Type": "application/json" }),
       body: JSON.stringify({ orders }),
     }),
   remove: ({ token, orderId }) =>
     request(`/orders/${encodeURIComponent(orderId)}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildAuthHeaders(token),
     }),
 };
 
 export const productsApi = {
   list: ({ token }) =>
     request("/products", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildAuthHeaders(token),
     }),
 };
 
 export const usersApi = {
   list: ({ token }) =>
     request("/users", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildAuthHeaders(token),
+    }),
+};
+
+export const routesApi = {
+  list: ({ token }) =>
+    request("/routes", {
+      headers: buildAuthHeaders(token),
+    }),
+};
+
+export const driverTrackingApi = {
+  list: ({ token, driverId }) => {
+    const query = driverId ? `?driver_id=${encodeURIComponent(driverId)}` : "";
+    return request(`/driver-locations${query}`, {
+      headers: buildAuthHeaders(token),
+    });
+  },
+  publish: ({ token, payload }) =>
+    request("/driver-locations", {
+      method: "POST",
+      headers: buildAuthHeaders(token, { "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    }),
+  evaluate: ({ token, payload }) =>
+    request("/driver-progress/evaluate", {
+      method: "POST",
+      headers: buildAuthHeaders(token, { "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
     }),
 };
 
 export const profileApi = {
   get: ({ token, userId }) =>
     request(`/profile/${encodeURIComponent(userId)}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildAuthHeaders(token),
     }),
   update: ({ token, userId, updates }) =>
     request(`/profile/${encodeURIComponent(userId)}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: buildAuthHeaders(token, { "Content-Type": "application/json" }),
       body: JSON.stringify({ updates }),
     }),
 };

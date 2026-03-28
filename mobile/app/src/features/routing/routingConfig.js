@@ -1,27 +1,29 @@
+import { runtimeConfig } from "../../config/runtimeConfig";
+
 const ROUTING_ENDPOINT_CONFIG = {
   ALNS: {
     envName: "EXPO_PUBLIC_ROUTING_ALNS_URL",
-    value: process.env.EXPO_PUBLIC_ROUTING_ALNS_URL,
+    value: runtimeConfig.routingAlnsUrl,
   },
   ALNSTW: {
     envName: "EXPO_PUBLIC_ROUTING_ALNSTW_URL",
-    value: process.env.EXPO_PUBLIC_ROUTING_ALNSTW_URL,
+    value: runtimeConfig.routingAlnstwUrl,
   },
   DQN: {
     envName: "EXPO_PUBLIC_ROUTING_DQN_URL",
-    value: process.env.EXPO_PUBLIC_ROUTING_DQN_URL,
+    value: runtimeConfig.routingDqnUrl,
   },
   Qlearning: {
     envName: "EXPO_PUBLIC_ROUTING_QLEARNING_URL",
-    value: process.env.EXPO_PUBLIC_ROUTING_QLEARNING_URL,
+    value: runtimeConfig.routingQlearningUrl,
   },
   SA: {
     envName: "EXPO_PUBLIC_ROUTING_SA_URL",
-    value: process.env.EXPO_PUBLIC_ROUTING_SA_URL,
+    value: runtimeConfig.routingSaUrl,
   },
   TS: {
     envName: "EXPO_PUBLIC_ROUTING_TS_URL",
-    value: process.env.EXPO_PUBLIC_ROUTING_TS_URL,
+    value: runtimeConfig.routingTsUrl,
   },
 };
 
