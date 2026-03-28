@@ -81,7 +81,7 @@ export function MainNavigator() {
         ),
       })}
     >
-      <Tab.Screen name="Orders" component={OrdersScreen} options={{ title: "Siparislerim" }} />
+      {!isDriver ? <Tab.Screen name="Orders" component={OrdersScreen} options={{ title: "Siparislerim" }} /> : null}
       {isAdmin ? (
         <>
           <Tab.Screen name="QuickOrder" component={CreateOrderScreen} options={{ title: "Hizli Siparis" }} />
