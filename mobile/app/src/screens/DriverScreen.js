@@ -168,6 +168,61 @@ function formatDistanceMeters(value) {
   return `${Math.round(Number(value))} m`;
 }
 
+function haversineDistanceMeters(first, second) {
+  if (!first || !second) return Number.POSITIVE_INFINITY;
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const earthRadius = 6371000;
+  const deltaLat = toRadians(second.latitude - first.latitude);
+  const deltaLng = toRadians(second.longitude - first.longitude);
+  const a =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(toRadians(first.latitude)) *
+      Math.cos(toRadians(second.latitude)) *
+      Math.sin(deltaLng / 2) *
+      Math.sin(deltaLng / 2);
+  return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function appendTravelCoordinate(previous, nextCoordinate) {
+  if (!nextCoordinate) return previous;
+  if (!previous.length) return [nextCoordinate];
+
+  const lastCoordinate = previous[previous.length - 1];
+  if (haversineDistanceMeters(lastCoordinate, nextCoordinate) < 5) {
+    return previous;
+  }
+
+  return [...previous, nextCoordinate];
+}
+
+function findNearestRouteIndex(routeCoordinates, currentCoordinate) {
+  if (!routeCoordinates.length || !currentCoordinate) return 0;
+  let nearestIndex = 0;
+  let shortestDistance = Number.POSITIVE_INFINITY;
+
+  routeCoordinates.forEach((coordinate, index) => {
+    const distance = haversineDistanceMeters(coordinate, currentCoordinate);
+    if (distance < shortestDistance) {
+      shortestDistance = distance;
+      nearestIndex = index;
+    }
+  });
+
+  return nearestIndex;
+}
+
+function splitRouteCoordinates(routeCoordinates, currentCoordinate) {
+  if (!routeCoordinates.length) {
+    return { completedSegment: [], remainingSegment: [] };
+  }
+
+  const nearestIndex = findNearestRouteIndex(routeCoordinates, currentCoordinate);
+  return {
+    completedSegment: routeCoordinates.slice(0, Math.max(nearestIndex + 1, 1)),
+    remainingSegment: routeCoordinates.slice(Math.max(nearestIndex, 0)),
+  };
+}
+
 export default function DriverScreen() {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -182,6 +237,10 @@ export default function DriverScreen() {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [lastMatchedStop, setLastMatchedStop] = useState(null);
   const [lastDeliveryUpdateCount, setLastDeliveryUpdateCount] = useState(0);
+  const [traveledCoordinates, setTraveledCoordinates] = useState([]);
+  const [followDriver, setFollowDriver] = useState(true);
+  const [activeStopId, setActiveStopId] = useState("");
+  const [completingStopId, setCompletingStopId] = useState("");
   const canUseDriverPanel = ["driver", "admin"].includes(user?.role);
   const mapRef = useRef(null);
   const locationSubscriptionRef = useRef(null);
@@ -239,11 +298,81 @@ export default function DriverScreen() {
   const routeCoordinates = useMemo(() => buildRoutePath(selectedRoute), [selectedRoute]);
   const routeStops = useMemo(() => buildRouteStops(selectedRoute), [selectedRoute]);
   const mapRegion = useMemo(() => getMapRegion(routeCoordinates), [routeCoordinates]);
+  const currentCoordinate = currentLocation?.coords
+    ? {
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+      }
+    : null;
+  const routeProgress = useMemo(
+    () => splitRouteCoordinates(routeCoordinates, currentCoordinate),
+    [routeCoordinates, currentCoordinate]
+  );
 
   useEffect(() => {
     setLastMatchedStop(null);
     setLastDeliveryUpdateCount(0);
+    setActiveStopId("");
+    setTraveledCoordinates([]);
+    setFollowDriver(true);
   }, [selectedRouteId]);
+
+  const markStopCompletedLocally = useCallback((deliveryPointId) => {
+    const now = new Date().toISOString();
+    setRoutes((previous) =>
+      previous.map((route, routeIndex) => {
+        if (getRouteKey(route, routeIndex) !== selectedRouteId) return route;
+
+        return {
+          ...route,
+          delivery_points: Array.isArray(route.delivery_points)
+            ? route.delivery_points.map((point) => {
+                if (String(point?.id || point?.customer_id || "").trim() !== deliveryPointId) {
+                  return point;
+                }
+
+                const nextRequests = normalizeRequests(point?.node_detail?.customer?.requests).map((request) => ({
+                  ...request,
+                  status: "completed",
+                }));
+
+                return {
+                  ...point,
+                  visited: true,
+                  visit_time: now,
+                  node_detail: point?.node_detail?.customer
+                    ? {
+                        ...point.node_detail,
+                        customer: {
+                          ...point.node_detail.customer,
+                          requests: nextRequests,
+                        },
+                      }
+                    : point.node_detail,
+                };
+              })
+            : route.delivery_points,
+        };
+      })
+    );
+  }, [selectedRouteId]);
+
+  const animateToDriver = useCallback(
+    (coordinate, heading = 0) => {
+      if (!mapRef.current || !coordinate || !followDriver) return;
+      mapRef.current.animateCamera(
+        {
+          center: coordinate,
+          heading: Number.isFinite(heading) ? heading : 0,
+          pitch: 52,
+          zoom: 17,
+          altitude: 600,
+        },
+        { duration: 600 }
+      );
+    },
+    [followDriver]
+  );
 
   const stopTracking = useCallback(() => {
     if (locationSubscriptionRef.current) {
@@ -292,6 +421,9 @@ export default function DriverScreen() {
         if (evaluation?.matched) {
           setLastMatchedStop(evaluation.matched_stop || null);
           setLastDeliveryUpdateCount(Number(evaluation.updated_count || 0));
+          if (evaluation?.matched_stop?.delivery_point_id) {
+            markStopCompletedLocally(String(evaluation.matched_stop.delivery_point_id));
+          }
         }
       } catch (error) {
         console.warn("Driver location publish failed:", error?.message || error);
@@ -299,7 +431,21 @@ export default function DriverScreen() {
         setPublishing(false);
       }
     },
-    [selectedRoute, token, user]
+    [markStopCompletedLocally, selectedRoute, token, user]
+  );
+
+  const handleLocationUpdate = useCallback(
+    async (nextLocation) => {
+      setCurrentLocation(nextLocation);
+      const nextCoordinate = {
+        latitude: nextLocation.coords.latitude,
+        longitude: nextLocation.coords.longitude,
+      };
+      setTraveledCoordinates((previous) => appendTravelCoordinate(previous, nextCoordinate));
+      animateToDriver(nextCoordinate, nextLocation.coords.heading);
+      await publishLocation(nextLocation);
+    },
+    [animateToDriver, publishLocation]
   );
 
   const startTracking = useCallback(async () => {
@@ -321,8 +467,7 @@ export default function DriverScreen() {
       const current = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      setCurrentLocation(current);
-      await publishLocation(current);
+      await handleLocationUpdate(current);
 
       locationSubscriptionRef.current = await Location.watchPositionAsync(
         {
@@ -331,8 +476,7 @@ export default function DriverScreen() {
           distanceInterval: 10,
         },
         async (nextLocation) => {
-          setCurrentLocation(nextLocation);
-          await publishLocation(nextLocation);
+          await handleLocationUpdate(nextLocation);
         }
       );
 
@@ -342,7 +486,53 @@ export default function DriverScreen() {
     } finally {
       setStartingTracking(false);
     }
-  }, [publishLocation, selectedRoute]);
+  }, [handleLocationUpdate, selectedRoute]);
+
+  const completeStop = useCallback(
+    async (stop) => {
+      if (!selectedRoute || !token || !stop?.id) return;
+      setCompletingStopId(stop.id);
+
+      try {
+        const response = await driverTrackingApi.completeDelivery({
+          token,
+          payload: {
+            route_id: String(selectedRoute.id || ""),
+            route_name: String(selectedRoute.name || ""),
+            delivery_point_id: stop.id,
+            driver_id: user?.user_id || user?.email || user?.user_name,
+            latitude: currentCoordinate?.latitude ?? stop.coordinate?.latitude,
+            longitude: currentCoordinate?.longitude ?? stop.coordinate?.longitude,
+          },
+        });
+
+        markStopCompletedLocally(stop.id);
+        setLastMatchedStop(response?.matched_stop || { delivery_point_id: stop.id, distance_meters: 0 });
+        setLastDeliveryUpdateCount(Number(response?.updated_count || 0));
+        setActiveStopId(stop.id);
+        Alert.alert("Siparis guncellendi", `${stop.title} teslimati tamamlandi olarak isaretlendi.`);
+      } catch (error) {
+        Alert.alert("Teslimat guncellenemedi", error.message);
+      } finally {
+        setCompletingStopId("");
+      }
+    },
+    [currentCoordinate?.latitude, currentCoordinate?.longitude, markStopCompletedLocally, selectedRoute, token, user]
+  );
+
+  const confirmCompleteStop = useCallback(
+    (stop) => {
+      Alert.alert(
+        "Siparisi tamamla",
+        `${stop.title} teslimatini tamamlandi olarak isaretlemek istiyor musun?`,
+        [
+          { text: "Vazgec", style: "cancel" },
+          { text: "Tamamla", onPress: () => completeStop(stop) },
+        ]
+      );
+    },
+    [completeStop]
+  );
 
   useEffect(() => {
     if (currentStep === "map" && selectedRoute && !trackingEnabled) {
@@ -358,9 +548,9 @@ export default function DriverScreen() {
   }, [currentStep, selectedRoute, startTracking, trackingEnabled]);
 
   useEffect(() => {
-    if (currentStep !== "map" || !routeCoordinates.length || !mapRef.current) return;
+    if (currentStep !== "map" || !routeCoordinates.length || !mapRef.current || currentCoordinate) return;
     mapRef.current.animateToRegion(mapRegion, 500);
-  }, [currentStep, mapRegion, routeCoordinates]);
+  }, [currentCoordinate, currentStep, mapRegion, routeCoordinates]);
 
   if (!canUseDriverPanel) {
     return (
@@ -383,11 +573,23 @@ export default function DriverScreen() {
     const endCoordinate = getCoordinate(selectedRoute.end_point);
 
     return (
-      <View style={styles.mapScreen}>
-        <MapView ref={mapRef} style={styles.map} initialRegion={mapRegion}>
-          {routeCoordinates.length > 1 ? (
-            <Polyline coordinates={routeCoordinates} strokeColor="rgba(15, 118, 110, 0.32)" strokeWidth={7} />
-          ) : null}
+        <View style={styles.mapScreen}>
+          <MapView ref={mapRef} style={styles.map} initialRegion={mapRegion}>
+            {routeCoordinates.length > 1 ? (
+              <Polyline coordinates={routeCoordinates} strokeColor="rgba(148, 163, 184, 0.35)" strokeWidth={6} />
+            ) : null}
+
+            {routeProgress.completedSegment.length > 1 ? (
+              <Polyline coordinates={routeProgress.completedSegment} strokeColor="rgba(148, 163, 184, 0.55)" strokeWidth={7} />
+            ) : null}
+
+            {routeProgress.remainingSegment.length > 1 ? (
+              <Polyline coordinates={routeProgress.remainingSegment} strokeColor="rgba(15, 118, 110, 0.75)" strokeWidth={7} />
+            ) : null}
+
+            {traveledCoordinates.length > 1 ? (
+              <Polyline coordinates={traveledCoordinates} strokeColor="rgba(245, 158, 11, 0.95)" strokeWidth={5} />
+            ) : null}
 
           {startCoordinate ? (
             <Marker coordinate={startCoordinate} title="Baslangic">
@@ -400,16 +602,20 @@ export default function DriverScreen() {
           {routeStops.map((stop) => {
             if (!stop.coordinate) return null;
             return (
-              <Marker
-                key={stop.key}
-                coordinate={stop.coordinate}
-                title={`${stop.order}. ${stop.title}`}
-                description={`${stop.address} | ${stop.requestCount} siparis`}
-              >
-                <View style={[styles.mapMarker, stop.visited && styles.visitedMarker]}>
-                  <Text style={styles.markerText}>{stop.order}</Text>
-                </View>
-              </Marker>
+                <Marker
+                  key={stop.key}
+                  coordinate={stop.coordinate}
+                  title={`${stop.order}. ${stop.title}`}
+                  description={`${stop.address} | ${stop.requestCount} siparis`}
+                  onPress={() => {
+                    setActiveStopId(stop.id);
+                    confirmCompleteStop(stop);
+                  }}
+                >
+                  <View style={[styles.mapMarker, stop.visited && styles.visitedMarker, activeStopId === stop.id && styles.activeMarker]}>
+                    <Text style={styles.markerText}>{stop.order}</Text>
+                  </View>
+                </Marker>
             );
           })}
 
@@ -421,14 +627,11 @@ export default function DriverScreen() {
             </Marker>
           ) : null}
 
-          {currentLocation?.coords ? (
-            <Marker
-              coordinate={{
-                latitude: currentLocation.coords.latitude,
-                longitude: currentLocation.coords.longitude,
-              }}
-              title="Anlik Konum"
-            >
+            {currentCoordinate ? (
+              <Marker
+                coordinate={currentCoordinate}
+                title="Anlik Konum"
+              >
               <View style={[styles.mapMarker, styles.driverMarker]}>
                 <MaterialCommunityIcons name="truck-fast" size={16} color="#fff" />
               </View>
@@ -449,16 +652,46 @@ export default function DriverScreen() {
             </View>
           </View>
 
+          <Text style={styles.overlayMeta}>
+            Cizgiler: yesil kalan rota / sari gidilen yol / gri geride kalan rota
+          </Text>
+
           {lastMatchedStop ? (
             <View style={styles.matchPill}>
               <MaterialCommunityIcons name="map-marker-check" size={16} color={colors.success} />
               <Text style={styles.matchPillText}>
-                Son eslesme {lastMatchedStop.delivery_point_id} / {formatDistanceMeters(lastMatchedStop.distance_meters)} / {lastDeliveryUpdateCount} siparis
+                Son islem {lastMatchedStop.delivery_point_id} / {formatDistanceMeters(lastMatchedStop.distance_meters)} / {lastDeliveryUpdateCount} siparis
               </Text>
             </View>
           ) : (
-            <Text style={styles.overlayMeta}>Rota cizildi. Alttan durak sirasi ve siparisleri gorebilirsiniz.</Text>
+            <Text style={styles.overlayMeta}>Haritadaki duraga dokunup teslimati manuel onaylayabilirsin.</Text>
           )}
+
+          <View style={styles.toggleRow}>
+            <Pressable
+              style={[styles.miniPill, followDriver && styles.miniPillActive]}
+              onPress={() => setFollowDriver((previous) => !previous)}
+            >
+              <MaterialCommunityIcons name="crosshairs-gps" size={16} color={followDriver ? "#fff" : colors.primary} />
+              <Text style={[styles.miniPillText, followDriver && styles.miniPillTextActive]}>
+                {followDriver ? "Surus modu acik" : "Surus modu kapali"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.miniPill}
+              onPress={() => {
+                if (currentCoordinate) {
+                  animateToDriver(currentCoordinate, currentLocation?.coords?.heading);
+                } else if (mapRef.current) {
+                  mapRef.current.animateToRegion(mapRegion, 500);
+                }
+              }}
+            >
+              <MaterialCommunityIcons name="map-search-outline" size={16} color={colors.primary} />
+              <Text style={styles.miniPillText}>Merkeze al</Text>
+            </Pressable>
+          </View>
 
           <View style={styles.actionsRow}>
             <Pressable
@@ -489,15 +722,16 @@ export default function DriverScreen() {
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Durak Sirasi ve Siparisler</Text>
-            <Text style={styles.sheetSubtitle}>Harita acik kalir; siradaki kullanicilari ve siparislerini buradan takip edebilirsin.</Text>
+            <Text style={styles.sheetSubtitle}>Haritadan veya buradan teslimati onaylayabilirsin.</Text>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
             {routeStops.map((stop) => {
               const isLastMatched = String(lastMatchedStop?.delivery_point_id || "") === stop.id;
+              const isCompleting = completingStopId === stop.id;
 
               return (
-                <View key={stop.key} style={[styles.stopCard, isLastMatched && styles.stopCardHighlight]}>
+                <View key={stop.key} style={[styles.stopCard, isLastMatched && styles.stopCardHighlight, activeStopId === stop.id && styles.stopCardActive]}>
                   <View style={styles.stopHeader}>
                     <View style={styles.stopOrderBadge}>
                       <Text style={styles.stopOrderText}>{stop.order}</Text>
@@ -530,6 +764,35 @@ export default function DriverScreen() {
                   ) : (
                     <Text style={styles.requestFallback}>Bu durak icin siparis detayi bulunamadi.</Text>
                   )}
+
+                  <View style={styles.stopActions}>
+                    <Pressable
+                      style={[styles.stopActionButton, styles.focusButton]}
+                      onPress={() => {
+                        setActiveStopId(stop.id);
+                        if (stop.coordinate && mapRef.current) {
+                          mapRef.current.animateCamera(
+                            { center: stop.coordinate, zoom: 17, pitch: 35, heading: currentLocation?.coords?.heading || 0 },
+                            { duration: 450 }
+                          );
+                        }
+                      }}
+                    >
+                      <Text style={styles.focusButtonText}>Haritada Ac</Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={[styles.stopActionButton, styles.completeButton, (stop.visited || isCompleting) && styles.completeButtonDisabled]}
+                      onPress={() => confirmCompleteStop(stop)}
+                      disabled={stop.visited || isCompleting}
+                    >
+                      {isCompleting ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.completeButtonText}>{stop.visited ? "Tamamlandi" : "Teslim Et"}</Text>
+                      )}
+                    </Pressable>
+                  </View>
                 </View>
               );
             })}
@@ -799,6 +1062,34 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "600",
   },
+  toggleRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
+  miniPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  miniPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  miniPillText: {
+    color: colors.primary,
+    fontWeight: "700",
+  },
+  miniPillTextActive: {
+    color: "#fff",
+  },
   actionsRow: {
     flexDirection: "row",
     gap: 10,
@@ -836,7 +1127,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: "42%",
+    height: "45%",
     backgroundColor: "rgba(255,255,255,0.97)",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -879,6 +1170,9 @@ const styles = StyleSheet.create({
   stopCardHighlight: {
     borderColor: colors.success,
     backgroundColor: "#f0fdf4",
+  },
+  stopCardActive: {
+    borderColor: colors.primary,
   },
   stopHeader: {
     flexDirection: "row",
@@ -953,6 +1247,38 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: colors.muted,
   },
+  stopActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  stopActionButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: radii.md,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  focusButton: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  focusButtonText: {
+    color: colors.text,
+    fontWeight: "700",
+  },
+  completeButton: {
+    backgroundColor: colors.success,
+  },
+  completeButtonDisabled: {
+    opacity: 0.55,
+  },
+  completeButtonText: {
+    color: "#fff",
+    fontWeight: "800",
+  },
   mapMarker: {
     width: 30,
     height: 30,
@@ -974,6 +1300,9 @@ const styles = StyleSheet.create({
   },
   visitedMarker: {
     backgroundColor: colors.success,
+  },
+  activeMarker: {
+    transform: [{ scale: 1.12 }],
   },
   markerText: {
     color: "#fff",

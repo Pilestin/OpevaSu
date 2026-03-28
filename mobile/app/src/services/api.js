@@ -168,6 +168,12 @@ export const driverTrackingApi = {
       headers: buildAuthHeaders(token, { "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     }),
+  completeDelivery: ({ token, payload }) =>
+    request("/driver-progress/complete", {
+      method: "POST",
+      headers: buildAuthHeaders(token, { "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    }),
 };
 
 export const profileApi = {

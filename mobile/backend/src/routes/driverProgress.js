@@ -80,6 +80,24 @@ function findMatchedStop(route, coordinate, radiusMeters) {
   return bestMatch;
 }
 
+function findStopById(route, deliveryPointId) {
+  const lookupId = String(deliveryPointId || "").trim();
+  if (!lookupId) return null;
+
+  const deliveryPoints = Array.isArray(route?.delivery_points) ? route.delivery_points : [];
+  const index = deliveryPoints.findIndex((point) => String(point?.id || point?.customer_id || "").trim() === lookupId);
+  if (index < 0) return null;
+
+  const point = deliveryPoints[index];
+  return {
+    delivery_point_id: lookupId,
+    delivery_sequence: index + 1,
+    address: String(point?.location?.address || point?.address || "").trim(),
+    distance_meters: 0,
+    coordinate: getCoordinate(point),
+  };
+}
+
 async function updateOrdersForMatch(db, routeId, matchedStop, actorId) {
   const now = new Date();
   const logEntry = {
@@ -141,6 +159,30 @@ async function updateOrdersForMatch(db, routeId, matchedStop, actorId) {
   return { updatedCount, updatedOrders };
 }
 
+async function upsertDriverStopEvent(db, { driverId, routeId, routeName, matchedStop, latitude, longitude, action }) {
+  await db.collection("DriverStopEvents").updateOne(
+    {
+      driver_id: String(driverId || "driver"),
+      route_id: routeId,
+      delivery_point_id: matchedStop.delivery_point_id,
+    },
+    {
+      $set: {
+        route_name: String(routeName || "").trim(),
+        matched_at: new Date().toISOString(),
+        distance_meters: matchedStop.distance_meters,
+        latitude,
+        longitude,
+        last_action: action,
+      },
+      $inc: {
+        match_count: 1,
+      },
+    },
+    { upsert: true }
+  );
+}
+
 router.post("/evaluate", requireAuth, async (req, res) => {
   if (!["admin", "driver"].includes(req.user?.role)) {
     return res.status(403).json({ detail: "Bu endpoint sadece admin ve driver icin." });
@@ -179,32 +221,79 @@ router.post("/evaluate", requireAuth, async (req, res) => {
   const actorId = req.user.user_id || req.user.email || "driver";
   const { updatedCount, updatedOrders } = await updateOrdersForMatch(db, routeId, matchedStop, actorId);
 
-  await db.collection("DriverStopEvents").updateOne(
-    {
-      driver_id: String(req.body?.driver_id || actorId),
-      route_id: routeId,
-      delivery_point_id: matchedStop.delivery_point_id,
-    },
-    {
-      $set: {
-        route_name: String(route?.name || "").trim(),
-        matched_at: new Date().toISOString(),
-        distance_meters: matchedStop.distance_meters,
-        latitude,
-        longitude,
-      },
-      $inc: {
-        match_count: 1,
-      },
-    },
-    { upsert: true }
-  );
+  await upsertDriverStopEvent(db, {
+    driverId: req.body?.driver_id || actorId,
+    routeId,
+    routeName: route?.name,
+    matchedStop,
+    latitude,
+    longitude,
+    action: "gps_match",
+  });
 
   return res.json({
     matched: true,
     matched_stop: matchedStop,
     updated_orders: updatedOrders,
     updated_count: updatedCount,
+  });
+});
+
+router.post("/complete", requireAuth, async (req, res) => {
+  if (!["admin", "driver"].includes(req.user?.role)) {
+    return res.status(403).json({ detail: "Bu endpoint sadece admin ve driver icin." });
+  }
+
+  const routeId = String(req.body?.route_id || "").trim();
+  const deliveryPointId = String(req.body?.delivery_point_id || "").trim();
+
+  if (!routeId) {
+    return res.status(400).json({ detail: "route_id zorunlu." });
+  }
+
+  if (!deliveryPointId) {
+    return res.status(400).json({ detail: "delivery_point_id zorunlu." });
+  }
+
+  let route;
+  try {
+    route = await fetchRouteById(routeId);
+  } catch (error) {
+    return res.status(502).json({ detail: `Rota servisine baglanilamadi: ${error.message}` });
+  }
+
+  if (!route) {
+    return res.status(404).json({ detail: "Rota bulunamadi." });
+  }
+
+  const matchedStop = findStopById(route, deliveryPointId);
+  if (!matchedStop) {
+    return res.status(404).json({ detail: "Teslimat noktasi bulunamadi." });
+  }
+
+  const db = getDb();
+  const actorId = req.user.user_id || req.user.email || "driver";
+  const { updatedCount, updatedOrders } = await updateOrdersForMatch(db, routeId, matchedStop, actorId);
+  const latitude = toNumber(req.body?.latitude ?? matchedStop.coordinate?.latitude);
+  const longitude = toNumber(req.body?.longitude ?? matchedStop.coordinate?.longitude);
+
+  await upsertDriverStopEvent(db, {
+    driverId: req.body?.driver_id || actorId,
+    routeId,
+    routeName: route?.name,
+    matchedStop,
+    latitude,
+    longitude,
+    action: "manual_complete",
+  });
+
+  return res.json({
+    success: true,
+    matched: true,
+    matched_stop: matchedStop,
+    updated_orders: updatedOrders,
+    updated_count: updatedCount,
+    completion_source: "manual_driver_confirm",
   });
 });
 
