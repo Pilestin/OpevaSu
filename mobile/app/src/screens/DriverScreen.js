@@ -241,6 +241,8 @@ export default function DriverScreen() {
   const [followDriver, setFollowDriver] = useState(true);
   const [activeStopId, setActiveStopId] = useState("");
   const [completingStopId, setCompletingStopId] = useState("");
+  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const [isTopOverlayExpanded, setIsTopOverlayExpanded] = useState(true);
   const canUseDriverPanel = ["driver", "admin"].includes(user?.role);
   const mapRef = useRef(null);
   const locationSubscriptionRef = useRef(null);
@@ -315,6 +317,8 @@ export default function DriverScreen() {
     setActiveStopId("");
     setTraveledCoordinates([]);
     setFollowDriver(true);
+    setIsSheetExpanded(false);
+    setIsTopOverlayExpanded(true);
   }, [selectedRouteId]);
 
   const markStopCompletedLocally = useCallback((deliveryPointId) => {
@@ -661,7 +665,7 @@ export default function DriverScreen() {
           ) : null}
         </MapView>
 
-        <View style={styles.topOverlay}>
+        <View style={[styles.topOverlay, !isTopOverlayExpanded && styles.topOverlayCollapsed]}>
           <View style={styles.overlayHeaderRow}>
             <View style={styles.overlayHeaderText}>
               <Text style={styles.overlayTitle}>{selectedRoute.name || "Secili rota"}</Text>
@@ -669,79 +673,100 @@ export default function DriverScreen() {
                 {routeStops.length} durak / {resolveRouteTimestamp(selectedRoute)}
               </Text>
             </View>
-            <View style={styles.statusPill}>
-              <Text style={styles.statusPillText}>{trackingEnabled ? "GPS Acik" : "GPS Kapali"}</Text>
+            <View style={styles.overlayHeaderActions}>
+              <View style={styles.statusPill}>
+                <Text style={styles.statusPillText}>{trackingEnabled ? "GPS Acik" : "GPS Kapali"}</Text>
+              </View>
+              <Pressable
+                style={styles.overlayToggleButton}
+                onPress={() => setIsTopOverlayExpanded((previous) => !previous)}
+              >
+                <MaterialCommunityIcons
+                  name={isTopOverlayExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={colors.text}
+                />
+              </Pressable>
             </View>
           </View>
 
-          <Text style={styles.overlayMeta}>
-            Cizgiler: yesil kalan rota / sari gidilen yol / gri geride kalan rota
-          </Text>
-
-          {lastMatchedStop ? (
-            <View style={styles.matchPill}>
-              <MaterialCommunityIcons name="map-marker-check" size={16} color={colors.success} />
-              <Text style={styles.matchPillText}>
-                Son islem {lastMatchedStop.delivery_point_id} / {formatDistanceMeters(lastMatchedStop.distance_meters)} / {lastDeliveryUpdateCount} siparis
-              </Text>
-            </View>
+          {!isTopOverlayExpanded ? (
+            <Text style={styles.collapsedOverlayHint}>Kontrolleri ac</Text>
           ) : (
-            <Text style={styles.overlayMeta}>Haritadaki duraga dokunup teslimati manuel onaylayabilirsin.</Text>
-          )}
-
-          <View style={styles.toggleRow}>
-            <Pressable
-              style={[styles.miniPill, followDriver && styles.miniPillActive]}
-              onPress={() => setFollowDriver((previous) => !previous)}
-            >
-              <MaterialCommunityIcons name="crosshairs-gps" size={16} color={followDriver ? "#fff" : colors.primary} />
-              <Text style={[styles.miniPillText, followDriver && styles.miniPillTextActive]}>
-                {followDriver ? "Surus modu acik" : "Surus modu kapali"}
+            <>
+              <Text style={styles.overlayMeta}>
+                Cizgiler: yesil kalan rota / sari gidilen yol / gri geride kalan rota
               </Text>
-            </Pressable>
 
-            <Pressable
-              style={styles.miniPill}
-              onPress={() => {
-                if (currentCoordinate) {
-                  animateToDriver(currentCoordinate, currentLocation?.coords?.heading);
-                } else if (mapRef.current) {
-                  mapRef.current.animateToRegion(mapRegion, 500);
-                }
-              }}
-            >
-              <MaterialCommunityIcons name="map-search-outline" size={16} color={colors.primary} />
-              <Text style={styles.miniPillText}>Merkeze al</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.actionsRow}>
-            <Pressable
-              style={[styles.actionButton, styles.secondaryButton]}
-              onPress={() => {
-                stopTracking();
-                setCurrentStep("selection");
-              }}
-            >
-              <Text style={styles.secondaryButtonText}>Rotalara Don</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.actionButton, trackingEnabled ? styles.dangerButton : styles.primaryButton]}
-              onPress={trackingEnabled ? stopTracking : startTracking}
-              disabled={startingTracking}
-            >
-              {startingTracking ? (
-                <ActivityIndicator size="small" color="#fff" />
+              {lastMatchedStop ? (
+                <View style={styles.matchPill}>
+                  <MaterialCommunityIcons name="map-marker-check" size={16} color={colors.success} />
+                  <Text style={styles.matchPillText}>
+                    Son islem {lastMatchedStop.delivery_point_id} / {formatDistanceMeters(lastMatchedStop.distance_meters)} / {lastDeliveryUpdateCount} siparis
+                  </Text>
+                </View>
               ) : (
-                <Text style={styles.primaryButtonText}>{trackingEnabled ? "Takibi Durdur" : "Takibi Baslat"}</Text>
+                <Text style={styles.overlayMeta}>Haritadaki duraga dokunup teslimati manuel onaylayabilirsin.</Text>
               )}
-            </Pressable>
-          </View>
+
+              <View style={styles.toggleRow}>
+                <Pressable
+                  style={[styles.miniPill, followDriver && styles.miniPillActive]}
+                  onPress={() => setFollowDriver((previous) => !previous)}
+                >
+                  <MaterialCommunityIcons name="crosshairs-gps" size={16} color={followDriver ? "#fff" : colors.primary} />
+                  <Text style={[styles.miniPillText, followDriver && styles.miniPillTextActive]}>
+                    {followDriver ? "Surus modu acik" : "Surus modu kapali"}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.miniPill}
+                  onPress={() => {
+                    if (currentCoordinate) {
+                      animateToDriver(currentCoordinate, currentLocation?.coords?.heading);
+                    } else if (mapRef.current) {
+                      mapRef.current.animateToRegion(mapRegion, 500);
+                    }
+                  }}
+                >
+                  <MaterialCommunityIcons name="map-search-outline" size={16} color={colors.primary} />
+                  <Text style={styles.miniPillText}>Merkeze al</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.actionsRow}>
+                <Pressable
+                  style={[styles.actionButton, styles.secondaryButton]}
+                  onPress={() => {
+                    stopTracking();
+                    setCurrentStep("selection");
+                  }}
+                >
+                  <Text style={styles.secondaryButtonText}>Rotalara Don</Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.actionButton, trackingEnabled ? styles.dangerButton : styles.primaryButton]}
+                  onPress={trackingEnabled ? stopTracking : startTracking}
+                  disabled={startingTracking}
+                >
+                  {startingTracking ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>{trackingEnabled ? "Takibi Durdur" : "Takibi Baslat"}</Text>
+                  )}
+                </Pressable>
+              </View>
+            </>
+          )}
         </View>
 
-        <View style={styles.bottomSheet}>
-          <View style={styles.sheetHandle} />
+        <View style={[styles.bottomSheet, isSheetExpanded ? styles.bottomSheetExpanded : styles.bottomSheetCollapsed]}>
+          <Pressable style={styles.sheetHandleButton} onPress={() => setIsSheetExpanded((previous) => !previous)}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetHandleLabel}>{isSheetExpanded ? "Listeyi kucult" : "Listeyi buyut"}</Text>
+          </Pressable>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Durak Sirasi ve Siparisler</Text>
             <Text style={styles.sheetSubtitle}>Haritadan veya buradan teslimati onaylayabilirsin.</Text>
@@ -1041,10 +1066,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadows.card,
   },
+  topOverlayCollapsed: {
+    paddingBottom: 10,
+  },
   overlayHeaderRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
+  },
+  overlayHeaderActions: {
+    alignItems: "flex-end",
+    gap: 8,
   },
   overlayHeaderText: {
     flex: 1,
@@ -1068,6 +1100,21 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: "800",
     fontSize: 12,
+  },
+  overlayToggleButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  collapsedOverlayHint: {
+    color: colors.muted,
+    marginTop: 6,
+    fontWeight: "700",
   },
   matchPill: {
     marginTop: 10,
@@ -1148,8 +1195,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 0,
-    height: "45%",
+    bottom: -6,
     backgroundColor: "rgba(255,255,255,0.97)",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -1158,13 +1204,28 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: colors.border,
   },
+  bottomSheetCollapsed: {
+    height: "31%",
+  },
+  bottomSheetExpanded: {
+    height: "48%",
+  },
+  sheetHandleButton: {
+    alignItems: "center",
+    paddingBottom: 6,
+  },
   sheetHandle: {
     alignSelf: "center",
     width: 52,
     height: 5,
     borderRadius: 999,
     backgroundColor: "#cbd5e1",
-    marginBottom: 10,
+    marginBottom: 8,
+  },
+  sheetHandleLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
   },
   sheetHeader: {
     marginBottom: 10,
