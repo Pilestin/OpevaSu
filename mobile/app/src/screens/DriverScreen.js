@@ -337,7 +337,7 @@ export default function DriverScreen() {
   const [navigationViewEnabled, setNavigationViewEnabled] = useState(true);
   const [activeStopId, setActiveStopId] = useState("");
   const [completingStopId, setCompletingStopId] = useState("");
-  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const [sheetMode, setSheetMode] = useState("collapsed");
   const [isTopOverlayExpanded, setIsTopOverlayExpanded] = useState(true);
   const [isMapReady, setIsMapReady] = useState(false);
   const isExpoGo = isExpoGoApp;
@@ -471,7 +471,7 @@ export default function DriverScreen() {
     setTraveledCoordinates([]);
     setFollowDriver(true);
     setNavigationViewEnabled(true);
-    setIsSheetExpanded(false);
+    setSheetMode("collapsed");
     setIsTopOverlayExpanded(true);
     setIsMapReady(false);
   }, [selectedRouteId]);
@@ -706,6 +706,14 @@ export default function DriverScreen() {
     },
     [completeStop]
   );
+
+  const cycleSheetMode = useCallback(() => {
+    setSheetMode((previous) => {
+      if (previous === "hidden") return "collapsed";
+      if (previous === "collapsed") return "expanded";
+      return "hidden";
+    });
+  }, []);
 
   useEffect(() => {
     if (currentStep === "map" && selectedRoute && !trackingEnabled) {
@@ -1088,83 +1096,113 @@ export default function DriverScreen() {
           )}
         </View>
 
-        <View style={[styles.bottomSheet, isSheetExpanded ? styles.bottomSheetExpanded : styles.bottomSheetCollapsed]}>
-          <Pressable style={styles.sheetHandleButton} onPress={() => setIsSheetExpanded((previous) => !previous)}>
+        <View
+          style={[
+            styles.bottomSheet,
+            sheetMode === "expanded" && styles.bottomSheetExpanded,
+            sheetMode === "collapsed" && styles.bottomSheetCollapsed,
+            sheetMode === "hidden" && styles.bottomSheetHidden,
+          ]}
+        >
+          <Pressable style={styles.sheetHandleButton} onPress={cycleSheetMode}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.sheetHandleLabel}>{isSheetExpanded ? "Listeyi kucult" : "Listeyi buyut"}</Text>
+            <View style={styles.sheetHandleRow}>
+              <MaterialCommunityIcons
+                name={
+                  sheetMode === "hidden"
+                    ? "chevron-up"
+                    : sheetMode === "collapsed"
+                      ? "unfold-more-horizontal"
+                      : "chevron-down"
+                }
+                size={16}
+                color={colors.muted}
+              />
+              <Text style={styles.sheetHandleLabel}>
+                {sheetMode === "hidden"
+                  ? "Listeyi ac"
+                  : sheetMode === "collapsed"
+                    ? "Listeyi buyut"
+                    : "Listeyi gizle"}
+              </Text>
+            </View>
           </Pressable>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Durak Sirasi ve Siparisler</Text>
-            <Text style={styles.sheetSubtitle}>Haritadan veya buradan teslimati onaylayabilirsin.</Text>
-          </View>
+          {sheetMode !== "hidden" ? (
+            <>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>Durak Sirasi ve Siparisler</Text>
+                <Text style={styles.sheetSubtitle}>Haritadan veya buradan teslimati onaylayabilirsin.</Text>
+              </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
-            {routeStops.map((stop) => {
-              const isLastMatched = String(lastMatchedStop?.delivery_point_id || "") === stop.id;
-              const isCompleting = completingStopId === stop.id;
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
+                {routeStops.map((stop) => {
+                  const isLastMatched = String(lastMatchedStop?.delivery_point_id || "") === stop.id;
+                  const isCompleting = completingStopId === stop.id;
 
-              return (
-                <View key={stop.key} style={[styles.stopCard, isLastMatched && styles.stopCardHighlight, activeStopId === stop.id && styles.stopCardActive]}>
-                  <View style={styles.stopHeader}>
-                    <View style={styles.stopOrderBadge}>
-                      <Text style={styles.stopOrderText}>{stop.order}</Text>
-                    </View>
-                    <View style={styles.stopHeaderText}>
-                      <Text style={styles.stopTitle}>{stop.title}</Text>
-                      <Text style={styles.stopMeta}>{stop.address}</Text>
-                    </View>
-                    <View style={styles.stopAside}>
-                      <Text style={styles.stopAsideTop}>{stop.requestCount} siparis</Text>
-                      <Text style={styles.stopAsideBottom}>{stop.visited ? formatVisitTime(stop.visitTime) : "Bekliyor"}</Text>
-                    </View>
-                  </View>
-
-                  {stop.requests.length ? (
-                    <View style={styles.requestList}>
-                      {stop.requests.map((request) => (
-                        <View key={request.key} style={styles.requestItem}>
-                          <View style={styles.requestBullet} />
-                          <View style={styles.requestTextWrap}>
-                            <Text style={styles.requestTitle}>{request.summary}</Text>
-                            <Text style={styles.requestMeta}>
-                              Durum: {request.status}
-                              {request.serviceTime != null ? ` / Servis ${request.serviceTime} sn` : ""}
-                            </Text>
-                          </View>
+                  return (
+                    <View key={stop.key} style={[styles.stopCard, isLastMatched && styles.stopCardHighlight, activeStopId === stop.id && styles.stopCardActive]}>
+                      <View style={styles.stopHeader}>
+                        <View style={styles.stopOrderBadge}>
+                          <Text style={styles.stopOrderText}>{stop.order}</Text>
                         </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <Text style={styles.requestFallback}>Bu durak icin siparis detayi bulunamadi.</Text>
-                  )}
+                        <View style={styles.stopHeaderText}>
+                          <Text style={styles.stopTitle}>{stop.title}</Text>
+                          <Text style={styles.stopMeta}>{stop.address}</Text>
+                        </View>
+                        <View style={styles.stopAside}>
+                          <Text style={styles.stopAsideTop}>{stop.requestCount} siparis</Text>
+                          <Text style={styles.stopAsideBottom}>{stop.visited ? formatVisitTime(stop.visitTime) : "Bekliyor"}</Text>
+                        </View>
+                      </View>
 
-                  <View style={styles.stopActions}>
-                    <Pressable
-                      style={[styles.stopActionButton, styles.focusButton]}
-                      onPress={() => {
-                        setActiveStopId(stop.id);
-                        centerMapOnCoordinate(stop.coordinate);
-                      }}
-                    >
-                      <Text style={styles.focusButtonText}>Haritada Ac</Text>
-                    </Pressable>
-
-                    <Pressable
-                      style={[styles.stopActionButton, styles.completeButton, (stop.visited || isCompleting) && styles.completeButtonDisabled]}
-                      onPress={() => confirmCompleteStop(stop)}
-                      disabled={stop.visited || isCompleting}
-                    >
-                      {isCompleting ? (
-                        <ActivityIndicator size="small" color="#fff" />
+                      {stop.requests.length ? (
+                        <View style={styles.requestList}>
+                          {stop.requests.map((request) => (
+                            <View key={request.key} style={styles.requestItem}>
+                              <View style={styles.requestBullet} />
+                              <View style={styles.requestTextWrap}>
+                                <Text style={styles.requestTitle}>{request.summary}</Text>
+                                <Text style={styles.requestMeta}>
+                                  Durum: {request.status}
+                                  {request.serviceTime != null ? ` / Servis ${request.serviceTime} sn` : ""}
+                                </Text>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
                       ) : (
-                        <Text style={styles.completeButtonText}>{stop.visited ? "Tamamlandi" : "Teslim Et"}</Text>
+                        <Text style={styles.requestFallback}>Bu durak icin siparis detayi bulunamadi.</Text>
                       )}
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })}
-          </ScrollView>
+
+                      <View style={styles.stopActions}>
+                        <Pressable
+                          style={[styles.stopActionButton, styles.focusButton]}
+                          onPress={() => {
+                            setActiveStopId(stop.id);
+                            centerMapOnCoordinate(stop.coordinate);
+                          }}
+                        >
+                          <Text style={styles.focusButtonText}>Haritada Ac</Text>
+                        </Pressable>
+
+                        <Pressable
+                          style={[styles.stopActionButton, styles.completeButton, (stop.visited || isCompleting) && styles.completeButtonDisabled]}
+                          onPress={() => confirmCompleteStop(stop)}
+                          disabled={stop.visited || isCompleting}
+                        >
+                          {isCompleting ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Text style={styles.completeButtonText}>{stop.visited ? "Tamamlandi" : "Teslim Et"}</Text>
+                          )}
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </>
+          ) : null}
         </View>
       </View>
     );
@@ -1538,9 +1576,18 @@ const styles = StyleSheet.create({
   bottomSheetExpanded: {
     height: "48%",
   },
+  bottomSheetHidden: {
+    height: 64,
+    bottom: -18,
+  },
   sheetHandleButton: {
     alignItems: "center",
     paddingBottom: 6,
+  },
+  sheetHandleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   sheetHandle: {
     alignSelf: "center",
