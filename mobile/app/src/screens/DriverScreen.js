@@ -261,6 +261,35 @@ function appendTravelCoordinate(previous, nextCoordinate) {
   return [...previous, nextCoordinate];
 }
 
+function projectCoordinate(coordinate, headingDegrees, distanceMeters) {
+  if (!coordinate || !Number.isFinite(headingDegrees) || !Number.isFinite(distanceMeters)) {
+    return coordinate;
+  }
+
+  const earthRadius = 6378137;
+  const headingRadians = (headingDegrees * Math.PI) / 180;
+  const latitudeRadians = (coordinate.latitude * Math.PI) / 180;
+  const longitudeRadians = (coordinate.longitude * Math.PI) / 180;
+  const angularDistance = distanceMeters / earthRadius;
+
+  const projectedLatitude = Math.asin(
+    Math.sin(latitudeRadians) * Math.cos(angularDistance) +
+      Math.cos(latitudeRadians) * Math.sin(angularDistance) * Math.cos(headingRadians)
+  );
+
+  const projectedLongitude =
+    longitudeRadians +
+    Math.atan2(
+      Math.sin(headingRadians) * Math.sin(angularDistance) * Math.cos(latitudeRadians),
+      Math.cos(angularDistance) - Math.sin(latitudeRadians) * Math.sin(projectedLatitude)
+    );
+
+  return {
+    latitude: (projectedLatitude * 180) / Math.PI,
+    longitude: (projectedLongitude * 180) / Math.PI,
+  };
+}
+
 function findNearestRouteIndex(routeCoordinates, currentCoordinate) {
   if (!routeCoordinates.length || !currentCoordinate) return 0;
   let nearestIndex = 0;
@@ -305,6 +334,7 @@ export default function DriverScreen() {
   const [lastDeliveryUpdateCount, setLastDeliveryUpdateCount] = useState(0);
   const [traveledCoordinates, setTraveledCoordinates] = useState([]);
   const [followDriver, setFollowDriver] = useState(true);
+  const [navigationViewEnabled, setNavigationViewEnabled] = useState(true);
   const [activeStopId, setActiveStopId] = useState("");
   const [completingStopId, setCompletingStopId] = useState("");
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
@@ -323,14 +353,34 @@ export default function DriverScreen() {
   const trafficTileUrl = useMemo(() => resolveTomTomTrafficTileUrl(), []);
   const [showTrafficLayer, setShowTrafficLayer] = useState(false);
   const centerMapOnCoordinate = useCallback(
-    (coordinate, zoomLevel = 16.8) => {
+    (coordinate, zoomLevel = 16.8, heading = null) => {
       if (!coordinate || !isMapReady) return;
+
+      const normalizedHeading = Number.isFinite(Number(heading)) ? Number(heading) : null;
+      const shouldUseNavigationView =
+        navigationViewEnabled && normalizedHeading != null && Math.abs(normalizedHeading) > 1;
+      const targetCoordinate = shouldUseNavigationView
+        ? projectCoordinate(coordinate, normalizedHeading, 120)
+        : coordinate;
+
+      if (isExpoGo && mapRef.current?.animateCamera) {
+        mapRef.current.animateCamera(
+          {
+            center: targetCoordinate,
+            heading: shouldUseNavigationView ? normalizedHeading : 0,
+            pitch: shouldUseNavigationView ? 58 : 0,
+            zoom: shouldUseNavigationView ? 17.2 : 16.2,
+          },
+          { duration: 500 }
+        );
+        return;
+      }
 
       if (isExpoGo && mapRef.current?.animateToRegion) {
         mapRef.current.animateToRegion(
           {
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude,
+            latitude: targetCoordinate.latitude,
+            longitude: targetCoordinate.longitude,
             latitudeDelta: 0.008,
             longitudeDelta: 0.008,
           },
@@ -341,12 +391,14 @@ export default function DriverScreen() {
 
       if (!cameraRef.current) return;
       cameraRef.current.setCamera({
-        centerCoordinate: toLngLat(coordinate),
-        zoomLevel,
+        centerCoordinate: toLngLat(targetCoordinate),
+        zoomLevel: shouldUseNavigationView ? 17.2 : zoomLevel,
+        heading: shouldUseNavigationView ? normalizedHeading : 0,
+        pitch: shouldUseNavigationView ? 58 : 0,
         animationDuration: 500,
       });
     },
-    [isExpoGo, isMapReady]
+    [isExpoGo, isMapReady, navigationViewEnabled]
   );
 
   const loadRoutes = useCallback(
@@ -418,6 +470,7 @@ export default function DriverScreen() {
     setActiveStopId("");
     setTraveledCoordinates([]);
     setFollowDriver(true);
+    setNavigationViewEnabled(true);
     setIsSheetExpanded(false);
     setIsTopOverlayExpanded(true);
     setIsMapReady(false);
@@ -464,10 +517,10 @@ export default function DriverScreen() {
   }, [selectedRouteId]);
 
   const animateToDriver = useCallback(
-    (coordinate) => {
+    (coordinate, heading = null) => {
       if (!coordinate || !followDriver || !isMapReady) return;
 
-      centerMapOnCoordinate(coordinate);
+      centerMapOnCoordinate(coordinate, 16.8, heading);
     },
     [centerMapOnCoordinate, followDriver, isMapReady]
   );
@@ -552,7 +605,7 @@ export default function DriverScreen() {
         longitude: nextLocation.coords.longitude,
       };
       setTraveledCoordinates((previous) => appendTravelCoordinate(previous, nextCoordinate));
-      animateToDriver(nextCoordinate);
+      animateToDriver(nextCoordinate, nextLocation?.coords?.heading);
       await publishLocation(nextLocation);
     },
     [animateToDriver, publishLocation]
@@ -958,10 +1011,24 @@ export default function DriverScreen() {
                 </Pressable>
 
                 <Pressable
+                  style={[styles.miniPill, navigationViewEnabled && styles.miniPillActive]}
+                  onPress={() => setNavigationViewEnabled((previous) => !previous)}
+                >
+                  <MaterialCommunityIcons
+                    name="navigation-variant-outline"
+                    size={16}
+                    color={navigationViewEnabled ? "#fff" : colors.primary}
+                  />
+                  <Text style={[styles.miniPillText, navigationViewEnabled && styles.miniPillTextActive]}>
+                    {navigationViewEnabled ? "Navigasyon gorunumu" : "Klasik gorunum"}
+                  </Text>
+                </Pressable>
+
+                <Pressable
                   style={styles.miniPill}
                   onPress={() => {
                     if (currentCoordinate) {
-                      animateToDriver(currentCoordinate);
+                      animateToDriver(currentCoordinate, currentLocation?.coords?.heading);
                     } else if (isExpoGo && mapRef.current?.animateToRegion) {
                       mapRef.current.animateToRegion(mapRegion, 500);
                     } else if (cameraRef.current && isMapReady) {
