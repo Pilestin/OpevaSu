@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View, Text, Pressable, ActivityIndicator, Dimensions, ScrollView } from "react-native";
 import Constants from "expo-constants";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -10,8 +10,10 @@ import ReactNativeMapView, {
 import { useAuth } from "../context/AuthContext";
 import { runtimeConfig } from "../config/runtimeConfig";
 import {
+  getBaseMapOptions,
   getBoundsFromCoordinates,
   lineFeatureFromCoordinates,
+  resolveExpoMapType,
   resolveMapStyleUrl,
   resolveTomTomTrafficTileUrl,
   toLngLat,
@@ -164,8 +166,11 @@ export default function FleetScreen() {
   const isExpoGo = isExpoGoApp;
   const mapRef = useRef(null);
   const cameraRef = useRef(null);
-  const mapStyleUrl = resolveMapStyleUrl();
-  const trafficTileUrl = resolveTomTomTrafficTileUrl();
+  const baseMapOptions = useMemo(() => getBaseMapOptions(), []);
+  const [selectedBaseMap, setSelectedBaseMap] = useState(baseMapOptions[0]?.id || "streets");
+  const mapStyleUrl = useMemo(() => resolveMapStyleUrl(selectedBaseMap), [selectedBaseMap]);
+  const expoMapType = useMemo(() => resolveExpoMapType(selectedBaseMap), [selectedBaseMap]);
+  const trafficTileUrl = useMemo(() => resolveTomTomTrafficTileUrl(), []);
 
   const fetchRoutes = useCallback(async () => {
     try {
@@ -326,6 +331,7 @@ export default function FleetScreen() {
           ref={mapRef}
           style={styles.map}
           initialRegion={initialRegion}
+          mapType={expoMapType}
           onMapReady={() => setIsMapReady(true)}
           showsCompass
         >
@@ -559,6 +565,21 @@ export default function FleetScreen() {
                   onPress={() => toggleFilter(vehicleId)}
                 >
                   <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>{vehicleId}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
+            {baseMapOptions.map((option) => {
+              const active = selectedBaseMap === option.id;
+              return (
+                <Pressable
+                  key={option.id}
+                  style={[styles.filterPill, active && styles.filterPillActive]}
+                  onPress={() => setSelectedBaseMap(option.id)}
+                >
+                  <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>{option.label}</Text>
                 </Pressable>
               );
             })}

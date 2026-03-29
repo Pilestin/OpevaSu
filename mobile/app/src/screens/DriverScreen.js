@@ -21,8 +21,10 @@ import ReactNativeMapView, {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 import {
+  getBaseMapOptions,
   getBoundsFromCoordinates,
   lineFeatureFromCoordinates,
+  resolveExpoMapType,
   resolveMapStyleUrl,
   resolveTomTomTrafficTileUrl,
   toLngLat,
@@ -314,7 +316,10 @@ export default function DriverScreen() {
   const cameraRef = useRef(null);
   const locationSubscriptionRef = useRef(null);
   const lastPublishedAtRef = useRef(0);
-  const mapStyleUrl = useMemo(() => resolveMapStyleUrl(), []);
+  const baseMapOptions = useMemo(() => getBaseMapOptions(), []);
+  const [selectedBaseMap, setSelectedBaseMap] = useState(baseMapOptions[0]?.id || "streets");
+  const mapStyleUrl = useMemo(() => resolveMapStyleUrl(selectedBaseMap), [selectedBaseMap]);
+  const expoMapType = useMemo(() => resolveExpoMapType(selectedBaseMap), [selectedBaseMap]);
   const trafficTileUrl = useMemo(() => resolveTomTomTrafficTileUrl(), []);
   const [showTrafficLayer, setShowTrafficLayer] = useState(false);
   const centerMapOnCoordinate = useCallback(
@@ -712,6 +717,7 @@ export default function DriverScreen() {
               ref={mapRef}
               style={styles.map}
               initialRegion={mapRegion}
+              mapType={expoMapType}
               onMapReady={() => setIsMapReady(true)}
               showsCompass
               rotateEnabled
@@ -923,6 +929,24 @@ export default function DriverScreen() {
               )}
 
               <View style={styles.toggleRow}>
+                {baseMapOptions.map((option) => {
+                  const isActive = selectedBaseMap === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      style={[styles.miniPill, isActive && styles.miniPillActive]}
+                      onPress={() => setSelectedBaseMap(option.id)}
+                    >
+                      <MaterialCommunityIcons
+                        name={option.id === "satellite" ? "image-filter-hdr" : option.id === "topo" ? "terrain" : "map-outline"}
+                        size={16}
+                        color={isActive ? "#fff" : colors.primary}
+                      />
+                      <Text style={[styles.miniPillText, isActive && styles.miniPillTextActive]}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })}
+
                 <Pressable
                   style={[styles.miniPill, followDriver && styles.miniPillActive]}
                   onPress={() => setFollowDriver((previous) => !previous)}

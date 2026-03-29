@@ -1,14 +1,51 @@
 import { runtimeConfig } from "../../config/runtimeConfig";
 
 const MAPLIBRE_DEMO_STYLE_URL = "https://demotiles.maplibre.org/style.json";
+const MAP_STYLE_PRESETS = {
+  streets: {
+    id: "streets",
+    label: "Standart",
+    mapTilerStyleId: "streets-v2",
+    expoMapType: "standard",
+  },
+  satellite: {
+    id: "satellite",
+    label: "Uydu",
+    mapTilerStyleId: "satellite",
+    expoMapType: "hybrid",
+  },
+  topo: {
+    id: "topo",
+    label: "Topo",
+    mapTilerStyleId: "topo-v2",
+    expoMapType: "terrain",
+  },
+};
 
-export function resolveMapStyleUrl() {
-  if (runtimeConfig.mapStyleUrl) {
+export function getBaseMapOptions() {
+  if (!runtimeConfig.mapTilerKey) {
+    return [MAP_STYLE_PRESETS.streets];
+  }
+
+  return Object.values(MAP_STYLE_PRESETS);
+}
+
+export function resolveExpoMapType(presetId = "streets") {
+  return MAP_STYLE_PRESETS[presetId]?.expoMapType || "standard";
+}
+
+export function resolveMapStyleUrl(presetId = "streets") {
+  const selectedPreset = MAP_STYLE_PRESETS[presetId] || MAP_STYLE_PRESETS.streets;
+
+  if (runtimeConfig.mapStyleUrl && presetId === "streets") {
     return runtimeConfig.mapStyleUrl;
   }
 
   if (runtimeConfig.mapTilerKey) {
-    const styleId = runtimeConfig.mapTilerStyleId || "streets-v2";
+    const styleId =
+      selectedPreset.mapTilerStyleId ||
+      runtimeConfig.mapTilerStyleId ||
+      MAP_STYLE_PRESETS.streets.mapTilerStyleId;
     return `https://api.maptiler.com/maps/${encodeURIComponent(styleId)}/style.json?key=${encodeURIComponent(runtimeConfig.mapTilerKey)}`;
   }
 
