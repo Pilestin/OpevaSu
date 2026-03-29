@@ -2,6 +2,12 @@ import Constants from "expo-constants";
 
 const extraEnv = Constants.expoConfig?.extra?.env || Constants.manifest2?.extra?.expoClient?.extra?.env || {};
 
+function normalizeBoolean(value) {
+  if (typeof value === "boolean") return value;
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+}
+
 function normalizeUrl(value) {
   const trimmed = typeof value === "string" ? value.trim() : "";
   if (!trimmed) return "";
@@ -22,4 +28,10 @@ export const runtimeConfig = {
   routingSaUrl: normalizeUrl(extraEnv.routingSaUrl),
   routingTsUrl: normalizeUrl(extraEnv.routingTsUrl),
   fleetVehiclesUrl: normalizeUrl(extraEnv.fleetVehiclesUrl),
+  mapStyleUrl: normalizeUrl(extraEnv.mapStyleUrl),
+  mapTilerKey: typeof extraEnv.mapTilerKey === "string" ? extraEnv.mapTilerKey.trim() : "",
+  mapTilerStyleId: typeof extraEnv.mapTilerStyleId === "string" ? extraEnv.mapTilerStyleId.trim() : "",
+  tomTomTrafficKey: typeof extraEnv.tomTomTrafficKey === "string" ? extraEnv.tomTomTrafficKey.trim() : "",
+  tomTomTrafficStyle: typeof extraEnv.tomTomTrafficStyle === "string" ? extraEnv.tomTomTrafficStyle.trim() : "",
+  googleMapsApiKeyConfigured: normalizeBoolean(extraEnv.googleMapsApiKeyConfigured),
 };

@@ -1,11 +1,35 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View, Text, Pressable, ActivityIndicator, Dimensions, ScrollView } from "react-native";
-import MapView, { Marker, Callout, Polyline } from "react-native-maps";
+import Constants from "expo-constants";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import ReactNativeMapView, {
+  Marker as ReactNativeMarker,
+  Polyline as ReactNativePolyline,
+  UrlTile,
+} from "react-native-maps";
 import { useAuth } from "../context/AuthContext";
 import { runtimeConfig } from "../config/runtimeConfig";
+import {
+  getBoundsFromCoordinates,
+  lineFeatureFromCoordinates,
+  resolveMapStyleUrl,
+  resolveTomTomTrafficTileUrl,
+  toLngLat,
+  zoomFromRegion,
+} from "../features/maps/maplibreConfig";
 import { driverTrackingApi, routesApi } from "../services/api";
 import { colors, radii, shadows } from "../theme";
+
+const isExpoGoApp =
+  Constants.executionEnvironment === "storeClient" || Constants.appOwnership === "expo";
+const mapLibreModule = isExpoGoApp ? null : require("@maplibre/maplibre-react-native");
+const Camera = mapLibreModule?.Camera;
+const MapLibreMapView = mapLibreModule?.MapView;
+const MarkerView = mapLibreModule?.MarkerView;
+const ShapeSource = mapLibreModule?.ShapeSource;
+const LineLayer = mapLibreModule?.LineLayer;
+const RasterSource = mapLibreModule?.RasterSource;
+const RasterLayer = mapLibreModule?.RasterLayer;
 
 const POLLING_INTERVAL = 5000;
 const TRACKABLE_VEHICLES = ["musoshi001", "musoshi004", "musoshi006"];
@@ -79,6 +103,53 @@ function buildRouteSegments(route, allCompletedPoints) {
   return segments;
 }
 
+function FleetPin({ type = "vehicle", label = "" }) {
+  const iconMap = {
+    start: "store",
+    end: "flag-checkered",
+    vehicle: "truck-fast",
+    sumo: "car-connected",
+    driver: "account-hard-hat",
+    delivered: "check-circle",
+    pending: "clock-time-four",
+  };
+
+  return (
+    <View style={styles.pinWrap}>
+      <View
+        style={[
+          styles.pinBody,
+          type === "start" && styles.pinBodyStart,
+          type === "end" && styles.pinBodyEnd,
+          type === "vehicle" && styles.pinBodyVehicle,
+          type === "sumo" && styles.pinBodySumo,
+          type === "driver" && styles.pinBodyDriver,
+          type === "delivered" && styles.pinBodyDelivered,
+          type === "pending" && styles.pinBodyPending,
+        ]}
+      >
+        {label ? (
+          <Text style={styles.pinLabel}>{label}</Text>
+        ) : (
+          <MaterialCommunityIcons name={iconMap[type] || "map-marker"} size={16} color="#fff" />
+        )}
+      </View>
+      <View
+        style={[
+          styles.pinTail,
+          type === "start" && styles.pinTailStart,
+          type === "end" && styles.pinTailEnd,
+          type === "vehicle" && styles.pinTailVehicle,
+          type === "sumo" && styles.pinTailSumo,
+          type === "driver" && styles.pinTailDriver,
+          type === "delivered" && styles.pinTailDelivered,
+          type === "pending" && styles.pinTailPending,
+        ]}
+      />
+    </View>
+  );
+}
+
 export default function FleetScreen() {
   const { token, user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -88,7 +159,13 @@ export default function FleetScreen() {
   const [selectedVehicles, setSelectedVehicles] = useState(TRACKABLE_VEHICLES);
   const [isTracking, setIsTracking] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isMapReady, setIsMapReady] = useState(false);
+  const [showTrafficLayer, setShowTrafficLayer] = useState(false);
+  const isExpoGo = isExpoGoApp;
   const mapRef = useRef(null);
+  const cameraRef = useRef(null);
+  const mapStyleUrl = resolveMapStyleUrl();
+  const trafficTileUrl = resolveTomTomTrafficTileUrl();
 
   const fetchRoutes = useCallback(async () => {
     try {
@@ -204,121 +281,261 @@ export default function FleetScreen() {
     (item) => Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))
   );
 
+  useEffect(() => {
+    if (!isMapReady) return;
+
+    const routeCoords = routesData.flatMap((route) => {
+      const points = [];
+      const start = getCoordinate(route?.start_point);
+      const end = getCoordinate(route?.end_point);
+      if (start) points.push(start);
+      (route.delivery_points || []).forEach((point) => {
+        const coordinate = getCoordinate(point);
+        if (coordinate) points.push(coordinate);
+      });
+      if (end) points.push(end);
+      return points;
+    });
+
+    const liveCoords = [
+      ...filteredVehicles
+        .filter((vehicle) => Number.isFinite(vehicle.latitude) && Number.isFinite(vehicle.longitude))
+        .map((vehicle) => ({ latitude: Number(vehicle.latitude), longitude: Number(vehicle.longitude) })),
+      ...activeDrivers.map((driver) => ({ latitude: Number(driver.latitude), longitude: Number(driver.longitude) })),
+    ];
+
+    const bounds = getBoundsFromCoordinates([...routeCoords, ...liveCoords]);
+    if (!bounds) return;
+
+    if (isExpoGo && mapRef.current?.fitToCoordinates) {
+      mapRef.current.fitToCoordinates([bounds.ne, bounds.sw], {
+        edgePadding: { top: 60, right: 30, bottom: 120, left: 30 },
+        animated: true,
+      });
+      return;
+    }
+
+    if (!cameraRef.current) return;
+    cameraRef.current.fitBounds(bounds.ne, bounds.sw, [60, 30, 120, 30], 500);
+  }, [activeDrivers, filteredVehicles, isExpoGo, isMapReady, routesData]);
+
   return (
     <View style={styles.container}>
-      <MapView ref={mapRef} style={styles.map} initialRegion={initialRegion}>
-        {routesData.map((route, routeIndex) => {
-          const segments = buildRouteSegments(route, allCompletedPoints);
+      {isExpoGo ? (
+        <ReactNativeMapView
+          ref={mapRef}
+          style={styles.map}
+          initialRegion={initialRegion}
+          onMapReady={() => setIsMapReady(true)}
+          showsCompass
+        >
+          {showTrafficLayer && trafficTileUrl ? (
+            <UrlTile urlTemplate={trafficTileUrl} zIndex={2} maximumZ={22} flipY={false} />
+          ) : null}
 
-          return (
-            <React.Fragment key={`route-group-${String(route.id || routeIndex)}`}>
-              {segments.map((segment, segmentIndex) => (
-                <Polyline
-                  key={`route-${routeIndex}-segment-${segmentIndex}`}
-                  coordinates={segment.coords}
-                  strokeColor={segment.isTraveled ? colors.success : colors.primary}
-                  strokeWidth={segment.isTraveled ? 5 : 3}
-                  lineDashPattern={segment.isTraveled ? undefined : [2, 4]}
-                />
-              ))}
+          {routesData.map((route, routeIndex) => {
+            const segments = buildRouteSegments(route, allCompletedPoints);
 
-              {getCoordinate(route?.start_point) ? (
-                <Marker coordinate={getCoordinate(route.start_point)} title="Depo (Baslangic)" zIndex={900}>
-                  <View style={[styles.nodeMarker, styles.depotMarker]}>
-                    <MaterialCommunityIcons name="store" size={16} color={colors.primary} />
+            return (
+              <React.Fragment key={`route-group-${String(route.id || routeIndex)}`}>
+                {segments.map((segment, segmentIndex) => (
+                  <ReactNativePolyline
+                    key={`route-${routeIndex}-segment-${segmentIndex}`}
+                    coordinates={segment.coords}
+                    strokeColor={segment.isTraveled ? colors.success : colors.primary}
+                    strokeWidth={segment.isTraveled ? 5 : 3}
+                  />
+                ))}
+
+                {getCoordinate(route?.start_point) ? (
+                  <ReactNativeMarker coordinate={getCoordinate(route.start_point)} anchor={{ x: 0.5, y: 1 }}>
+                    <FleetPin type="start" />
+                  </ReactNativeMarker>
+                ) : null}
+
+                {(route.delivery_points || []).map((point, pointIndex) => {
+                  const coordinate = getCoordinate(point);
+                  if (!coordinate) return null;
+
+                  const pointId = String(point.id || point.customer_id || pointIndex);
+                  const isDelivered = allCompletedPoints.has(pointId);
+
+                  return (
+                    <ReactNativeMarker
+                      key={`point-${pointId}-${routeIndex}-${pointIndex}`}
+                      coordinate={coordinate}
+                      anchor={{ x: 0.5, y: 1 }}
+                    >
+                      <FleetPin type={isDelivered ? "delivered" : "pending"} label={String(pointIndex + 1)} />
+                    </ReactNativeMarker>
+                  );
+                })}
+
+                {getCoordinate(route?.end_point) ? (
+                  <ReactNativeMarker coordinate={getCoordinate(route.end_point)} anchor={{ x: 0.5, y: 1 }}>
+                    <FleetPin type="end" />
+                  </ReactNativeMarker>
+                ) : null}
+              </React.Fragment>
+            );
+          })}
+
+          {filteredVehicles.map((vehicle) => {
+            if (!vehicle.latitude || !vehicle.longitude) return null;
+            const isReal = vehicle.vehicle_type === "REAL" || String(vehicle.vehicle_id || "").includes("musoshi");
+
+            return (
+              <ReactNativeMarker
+                key={`vehicle-${vehicle.vehicle_id}`}
+                coordinate={{ latitude: vehicle.latitude, longitude: vehicle.longitude }}
+                anchor={{ x: 0.5, y: 1 }}
+              >
+                <View style={styles.markerWrap}>
+                  <FleetPin type={isReal ? "vehicle" : "sumo"} />
+                  <View style={styles.inlineLabel}>
+                    <Text style={styles.inlineLabelText}>{vehicle.vehicle_id}</Text>
                   </View>
-                </Marker>
-              ) : null}
-
-              {(route.delivery_points || []).map((point, pointIndex) => {
-                const coordinate = getCoordinate(point);
-                if (!coordinate) return null;
-
-                const pointId = String(point.id || point.customer_id || pointIndex);
-                const isDelivered = allCompletedPoints.has(pointId);
-
-                return (
-                  <Marker
-                    key={`point-${pointId}-${routeIndex}-${pointIndex}`}
-                    coordinate={coordinate}
-                    title={`Musteri: ${pointId}`}
-                    description={isDelivered ? "Teslim edildi" : "Bekliyor"}
-                    zIndex={800}
-                  >
-                    <View style={[styles.nodeMarker, isDelivered ? styles.nodeDelivered : styles.nodePending]}>
-                      <MaterialCommunityIcons
-                        name={isDelivered ? "check-circle" : "clock-time-four"}
-                        size={16}
-                        color="#fff"
-                      />
-                    </View>
-                  </Marker>
-                );
-              })}
-            </React.Fragment>
-          );
-        })}
-
-        {filteredVehicles.map((vehicle) => {
-          if (!vehicle.latitude || !vehicle.longitude) return null;
-          const isReal = vehicle.vehicle_type === "REAL" || String(vehicle.vehicle_id || "").includes("musoshi");
-
-          return (
-            <Marker
-              key={`vehicle-${vehicle.vehicle_id}`}
-              coordinate={{ latitude: vehicle.latitude, longitude: vehicle.longitude }}
-              title={vehicle.vehicle_id}
-              zIndex={999}
-            >
-              <View style={[styles.markerBody, isReal ? styles.markerReal : styles.markerSumo]}>
-                <MaterialCommunityIcons
-                  name={isReal ? "truck-fast" : "car-connected"}
-                  size={20}
-                  color="#fff"
-                />
-              </View>
-              <Callout>
-                <View style={styles.callout}>
-                  <Text style={styles.calloutTitle}>{vehicle.vehicle_id}</Text>
-                  <Text style={styles.calloutText}>Tip: {vehicle.vehicle_type || "Bilinmiyor"}</Text>
-                  <Text style={styles.calloutText}>Hiz: {Number(vehicle.speed || 0).toFixed(1)} km/h</Text>
-                  <Text style={styles.calloutText}>Sarj: %{Number(vehicle.charge || 0).toFixed(0)}</Text>
-                  {vehicle.route_id ? <Text style={styles.calloutText}>Rota: {vehicle.route_id}</Text> : null}
-                  <Text style={[styles.calloutText, styles.calloutStrong]}>
-                    Tamamlanan: {vehicle.completed_points_array.length}
-                  </Text>
                 </View>
-              </Callout>
-            </Marker>
-          );
-        })}
+              </ReactNativeMarker>
+            );
+          })}
 
-        {activeDrivers.map((driver) => (
-          <Marker
-            key={`driver-${driver.driver_id}`}
-            coordinate={{
-              latitude: Number(driver.latitude),
-              longitude: Number(driver.longitude),
-            }}
-            title={driver.driver_name || driver.driver_id}
-            description={driver.route_name || driver.route_id || "Driver"}
-            zIndex={1000}
-          >
-            <View style={styles.driverMarker}>
-              <MaterialCommunityIcons name="account-hard-hat" size={18} color="#fff" />
-            </View>
-            <Callout>
-              <View style={styles.callout}>
-                <Text style={styles.calloutTitle}>{driver.driver_name || driver.driver_id}</Text>
-                <Text style={styles.calloutText}>Driver ID: {driver.driver_id}</Text>
-                <Text style={styles.calloutText}>Rota: {driver.route_name || driver.route_id || "-"}</Text>
-                <Text style={styles.calloutText}>Kaynak: {driver.source || "mobile-app"}</Text>
-                <Text style={styles.calloutText}>Guncelleme: {driver.updated_at || driver.timestamp || "-"}</Text>
+          {activeDrivers.map((driver) => (
+            <ReactNativeMarker
+              key={`driver-${driver.driver_id}`}
+              coordinate={{
+                latitude: Number(driver.latitude),
+                longitude: Number(driver.longitude),
+              }}
+              anchor={{ x: 0.5, y: 1 }}
+            >
+              <View style={styles.markerWrap}>
+                <FleetPin type="driver" />
+                <View style={styles.inlineLabel}>
+                  <Text style={styles.inlineLabelText}>{driver.driver_name || driver.driver_id}</Text>
+                </View>
               </View>
-            </Callout>
-          </Marker>
-        ))}
-      </MapView>
+            </ReactNativeMarker>
+          ))}
+        </ReactNativeMapView>
+      ) : (
+        <MapLibreMapView
+          ref={mapRef}
+          style={styles.map}
+          mapStyle={mapStyleUrl}
+          logoEnabled={false}
+          attributionEnabled={false}
+          scaleBarEnabled={false}
+          onDidFinishLoadingMap={() => setIsMapReady(true)}
+        >
+          {showTrafficLayer && trafficTileUrl ? (
+            <RasterSource id="fleet-traffic-source" tileUrlTemplates={[trafficTileUrl]} tileSize={256}>
+              <RasterLayer id="fleet-traffic-layer" style={{ rasterOpacity: 0.84 }} />
+            </RasterSource>
+          ) : null}
+
+          <Camera
+            ref={cameraRef}
+            defaultSettings={{
+              centerCoordinate: toLngLat(initialRegion),
+              zoomLevel: zoomFromRegion(initialRegion),
+            }}
+          />
+          {routesData.map((route, routeIndex) => {
+            const segments = buildRouteSegments(route, allCompletedPoints);
+
+            return (
+              <React.Fragment key={`route-group-${String(route.id || routeIndex)}`}>
+                {segments.map((segment, segmentIndex) => (
+                  <ShapeSource
+                    key={`route-${routeIndex}-segment-${segmentIndex}`}
+                    id={`route-${routeIndex}-segment-${segmentIndex}`}
+                    shape={lineFeatureFromCoordinates(segment.coords)}
+                  >
+                    <LineLayer
+                      id={`route-${routeIndex}-segment-${segmentIndex}-line`}
+                      style={{
+                        lineColor: segment.isTraveled ? colors.success : colors.primary,
+                        lineWidth: segment.isTraveled ? 5 : 3,
+                        lineCap: "round",
+                        lineJoin: "round",
+                      }}
+                    />
+                  </ShapeSource>
+                ))}
+
+                {getCoordinate(route?.start_point) ? (
+                  <MarkerView coordinate={toLngLat(getCoordinate(route.start_point))} anchor={{ x: 0.5, y: 1 }}>
+                    <FleetPin type="start" />
+                  </MarkerView>
+                ) : null}
+
+                {(route.delivery_points || []).map((point, pointIndex) => {
+                  const coordinate = getCoordinate(point);
+                  if (!coordinate) return null;
+
+                  const pointId = String(point.id || point.customer_id || pointIndex);
+                  const isDelivered = allCompletedPoints.has(pointId);
+
+                  return (
+                    <MarkerView
+                      key={`point-${pointId}-${routeIndex}-${pointIndex}`}
+                      coordinate={toLngLat(coordinate)}
+                      anchor={{ x: 0.5, y: 1 }}
+                    >
+                      <FleetPin type={isDelivered ? "delivered" : "pending"} label={String(pointIndex + 1)} />
+                    </MarkerView>
+                  );
+                })}
+
+                {getCoordinate(route?.end_point) ? (
+                  <MarkerView coordinate={toLngLat(getCoordinate(route.end_point))} anchor={{ x: 0.5, y: 1 }}>
+                    <FleetPin type="end" />
+                  </MarkerView>
+                ) : null}
+              </React.Fragment>
+            );
+          })}
+
+          {filteredVehicles.map((vehicle) => {
+            if (!vehicle.latitude || !vehicle.longitude) return null;
+            const isReal = vehicle.vehicle_type === "REAL" || String(vehicle.vehicle_id || "").includes("musoshi");
+
+            return (
+              <MarkerView
+                key={`vehicle-${vehicle.vehicle_id}`}
+                coordinate={toLngLat({ latitude: vehicle.latitude, longitude: vehicle.longitude })}
+                anchor={{ x: 0.5, y: 1 }}
+              >
+                <View style={styles.markerWrap}>
+                  <FleetPin type={isReal ? "vehicle" : "sumo"} />
+                  <View style={styles.inlineLabel}>
+                    <Text style={styles.inlineLabelText}>{vehicle.vehicle_id}</Text>
+                  </View>
+                </View>
+              </MarkerView>
+            );
+          })}
+
+          {activeDrivers.map((driver) => (
+            <MarkerView
+              key={`driver-${driver.driver_id}`}
+              coordinate={toLngLat({
+                latitude: Number(driver.latitude),
+                longitude: Number(driver.longitude),
+              })}
+              anchor={{ x: 0.5, y: 1 }}
+            >
+              <View style={styles.markerWrap}>
+                <FleetPin type="driver" />
+                <View style={styles.inlineLabel}>
+                  <Text style={styles.inlineLabelText}>{driver.driver_name || driver.driver_id}</Text>
+                </View>
+              </View>
+            </MarkerView>
+          ))}
+        </MapLibreMapView>
+      )}
 
       <View style={styles.overlayTop}>
         <View style={styles.statusCard}>
@@ -346,6 +563,19 @@ export default function FleetScreen() {
               );
             })}
           </ScrollView>
+
+          {trafficTileUrl ? (
+            <View style={styles.trafficRow}>
+              <Pressable
+                style={[styles.filterPill, showTrafficLayer && styles.filterPillActive]}
+                onPress={() => setShowTrafficLayer((previous) => !previous)}
+              >
+                <Text style={[styles.filterPillText, showTrafficLayer && styles.filterPillTextActive]}>
+                  {showTrafficLayer ? "Trafik Acik" : "Trafik Kapali"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -375,6 +605,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     color: colors.muted,
+    textAlign: "center",
   },
   container: {
     flex: 1,
@@ -413,6 +644,10 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     marginTop: 12,
+    flexDirection: "row",
+  },
+  trafficRow: {
+    marginTop: 10,
     flexDirection: "row",
   },
   filterPill: {
@@ -463,6 +698,77 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
+  pinWrap: {
+    alignItems: "center",
+  },
+  pinBody: {
+    minWidth: 30,
+    height: 30,
+    paddingHorizontal: 7,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    ...shadows.card,
+  },
+  pinBodyStart: {
+    backgroundColor: "#0f172a",
+  },
+  pinBodyEnd: {
+    backgroundColor: "#2563eb",
+  },
+  pinBodyVehicle: {
+    backgroundColor: colors.danger,
+  },
+  pinBodySumo: {
+    backgroundColor: "#2563eb",
+  },
+  pinBodyDriver: {
+    backgroundColor: "#b91c1c",
+  },
+  pinBodyDelivered: {
+    backgroundColor: colors.success,
+  },
+  pinBodyPending: {
+    backgroundColor: "#eab308",
+  },
+  pinLabel: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 11,
+  },
+  pinTail: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 10,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    marginTop: -2,
+  },
+  pinTailStart: {
+    borderTopColor: "#0f172a",
+  },
+  pinTailEnd: {
+    borderTopColor: "#2563eb",
+  },
+  pinTailVehicle: {
+    borderTopColor: colors.danger,
+  },
+  pinTailSumo: {
+    borderTopColor: "#2563eb",
+  },
+  pinTailDriver: {
+    borderTopColor: "#b91c1c",
+  },
+  pinTailDelivered: {
+    borderTopColor: colors.success,
+  },
+  pinTailPending: {
+    borderTopColor: "#eab308",
+  },
   markerBody: {
     width: 36,
     height: 36,
@@ -488,6 +794,23 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
     backgroundColor: colors.accent,
   },
+  markerWrap: {
+    alignItems: "center",
+  },
+  inlineLabel: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.94)",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  inlineLabelText: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: "700",
+  },
   nodeMarker: {
     width: 24,
     height: 24,
@@ -507,22 +830,5 @@ const styles = StyleSheet.create({
   nodePending: {
     backgroundColor: "#eab308",
     borderColor: "#fff",
-  },
-  callout: {
-    width: 180,
-    padding: 10,
-  },
-  calloutTitle: {
-    fontWeight: "800",
-    color: colors.text,
-    marginBottom: 4,
-  },
-  calloutText: {
-    fontSize: 12,
-    color: colors.muted,
-  },
-  calloutStrong: {
-    marginTop: 4,
-    fontWeight: "700",
   },
 });

@@ -11,12 +11,76 @@ import {
   View,
 } from "react-native";
 import * as Location from "expo-location";
+import Constants from "expo-constants";
 import { useFocusEffect } from "@react-navigation/native";
-import MapView, { Marker, Polyline } from "react-native-maps";
+import ReactNativeMapView, {
+  Marker as ReactNativeMarker,
+  Polyline as ReactNativePolyline,
+  UrlTile,
+} from "react-native-maps";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
+import {
+  getBoundsFromCoordinates,
+  lineFeatureFromCoordinates,
+  resolveMapStyleUrl,
+  resolveTomTomTrafficTileUrl,
+  toLngLat,
+  zoomFromRegion,
+} from "../features/maps/maplibreConfig";
 import { driverTrackingApi, liveDeliveryApi, routesApi } from "../services/api";
 import { colors, radii, shadows } from "../theme";
+
+const isExpoGoApp =
+  Constants.executionEnvironment === "storeClient" || Constants.appOwnership === "expo";
+const mapLibreModule = isExpoGoApp ? null : require("@maplibre/maplibre-react-native");
+const Camera = mapLibreModule?.Camera;
+const MapLibreMapView = mapLibreModule?.MapView;
+const MarkerView = mapLibreModule?.MarkerView;
+const ShapeSource = mapLibreModule?.ShapeSource;
+const LineLayer = mapLibreModule?.LineLayer;
+const RasterSource = mapLibreModule?.RasterSource;
+const RasterLayer = mapLibreModule?.RasterLayer;
+
+function RoutePin({ type = "stop", label = "", active = false }) {
+  const iconMap = {
+    start: "warehouse",
+    end: "flag-checkered",
+    driver: "truck-fast",
+  };
+  const iconName = iconMap[type];
+
+  return (
+    <View style={[styles.pinWrap, active && styles.pinWrapActive]}>
+      <View
+        style={[
+          styles.pinBody,
+          type === "start" && styles.pinBodyStart,
+          type === "end" && styles.pinBodyEnd,
+          type === "driver" && styles.pinBodyDriver,
+          type === "visited" && styles.pinBodyVisited,
+          type === "stop" && styles.pinBodyStop,
+        ]}
+      >
+        {iconName ? (
+          <MaterialCommunityIcons name={iconName} size={16} color="#fff" />
+        ) : (
+          <Text style={styles.pinLabel}>{label}</Text>
+        )}
+      </View>
+      <View
+        style={[
+          styles.pinTail,
+          type === "start" && styles.pinTailStart,
+          type === "end" && styles.pinTailEnd,
+          type === "driver" && styles.pinTailDriver,
+          type === "visited" && styles.pinTailVisited,
+          type === "stop" && styles.pinTailStop,
+        ]}
+      />
+    </View>
+  );
+}
 
 function getCoordinate(node) {
   if (!node || typeof node !== "object") return null;
@@ -244,10 +308,41 @@ export default function DriverScreen() {
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [isTopOverlayExpanded, setIsTopOverlayExpanded] = useState(true);
   const [isMapReady, setIsMapReady] = useState(false);
+  const isExpoGo = isExpoGoApp;
   const canUseDriverPanel = ["driver", "admin"].includes(user?.role);
   const mapRef = useRef(null);
+  const cameraRef = useRef(null);
   const locationSubscriptionRef = useRef(null);
   const lastPublishedAtRef = useRef(0);
+  const mapStyleUrl = useMemo(() => resolveMapStyleUrl(), []);
+  const trafficTileUrl = useMemo(() => resolveTomTomTrafficTileUrl(), []);
+  const [showTrafficLayer, setShowTrafficLayer] = useState(false);
+  const centerMapOnCoordinate = useCallback(
+    (coordinate, zoomLevel = 16.8) => {
+      if (!coordinate || !isMapReady) return;
+
+      if (isExpoGo && mapRef.current?.animateToRegion) {
+        mapRef.current.animateToRegion(
+          {
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            latitudeDelta: 0.008,
+            longitudeDelta: 0.008,
+          },
+          500
+        );
+        return;
+      }
+
+      if (!cameraRef.current) return;
+      cameraRef.current.setCamera({
+        centerCoordinate: toLngLat(coordinate),
+        zoomLevel,
+        animationDuration: 500,
+      });
+    },
+    [isExpoGo, isMapReady]
+  );
 
   const loadRoutes = useCallback(
     async (isRefresh = false) => {
@@ -365,18 +460,11 @@ export default function DriverScreen() {
 
   const animateToDriver = useCallback(
     (coordinate) => {
-      if (!mapRef.current || !coordinate || !followDriver || !isMapReady) return;
-      mapRef.current.animateToRegion(
-        {
-          latitude: coordinate.latitude,
-          longitude: coordinate.longitude,
-          latitudeDelta: 0.008,
-          longitudeDelta: 0.008,
-        },
-        500
-      );
+      if (!coordinate || !followDriver || !isMapReady) return;
+
+      centerMapOnCoordinate(coordinate);
     },
-    [followDriver, isMapReady]
+    [centerMapOnCoordinate, followDriver, isMapReady]
   );
 
   const stopTracking = useCallback(() => {
@@ -575,9 +663,27 @@ export default function DriverScreen() {
   }, [currentStep, selectedRoute, startTracking, trackingEnabled]);
 
   useEffect(() => {
-    if (currentStep !== "map" || !routeCoordinates.length || !mapRef.current || currentCoordinate || !isMapReady) return;
-    mapRef.current.animateToRegion(mapRegion, 500);
-  }, [currentCoordinate, currentStep, isMapReady, mapRegion, routeCoordinates]);
+    if (currentStep !== "map" || !routeCoordinates.length || currentCoordinate || !isMapReady) return;
+
+    if (isExpoGo && mapRef.current?.animateToRegion) {
+      mapRef.current.animateToRegion(mapRegion, 500);
+      return;
+    }
+
+    if (!cameraRef.current) return;
+
+    const bounds = getBoundsFromCoordinates(routeCoordinates);
+    if (bounds) {
+      cameraRef.current.fitBounds(bounds.ne, bounds.sw, [80, 40, 260, 40], 600);
+      return;
+    }
+
+    cameraRef.current.setCamera({
+      centerCoordinate: toLngLat(mapRegion),
+      zoomLevel: zoomFromRegion(mapRegion),
+      animationDuration: 500,
+    });
+  }, [currentCoordinate, currentStep, isExpoGo, isMapReady, mapRegion, routeCoordinates]);
 
   if (!canUseDriverPanel) {
     return (
@@ -601,75 +707,176 @@ export default function DriverScreen() {
 
     return (
         <View style={styles.mapScreen}>
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            initialRegion={mapRegion}
-            onMapReady={() => setIsMapReady(true)}
-          >
-            {routeCoordinates.length > 1 ? (
-              <Polyline coordinates={routeCoordinates} strokeColor="rgba(148, 163, 184, 0.35)" strokeWidth={6} />
-            ) : null}
+          {isExpoGo ? (
+            <ReactNativeMapView
+              ref={mapRef}
+              style={styles.map}
+              initialRegion={mapRegion}
+              onMapReady={() => setIsMapReady(true)}
+              showsCompass
+              rotateEnabled
+              showsUserLocation={false}
+            >
+              {showTrafficLayer && trafficTileUrl ? (
+                <UrlTile urlTemplate={trafficTileUrl} zIndex={2} maximumZ={22} flipY={false} />
+              ) : null}
 
-            {routeProgress.completedSegment.length > 1 ? (
-              <Polyline coordinates={routeProgress.completedSegment} strokeColor="rgba(148, 163, 184, 0.55)" strokeWidth={7} />
-            ) : null}
+              {routeCoordinates.length > 1 ? (
+                <ReactNativePolyline coordinates={routeCoordinates} strokeColor="rgba(148, 163, 184, 0.35)" strokeWidth={6} />
+              ) : null}
 
-            {routeProgress.remainingSegment.length > 1 ? (
-              <Polyline coordinates={routeProgress.remainingSegment} strokeColor="rgba(15, 118, 110, 0.75)" strokeWidth={7} />
-            ) : null}
+              {routeProgress.completedSegment.length > 1 ? (
+                <ReactNativePolyline coordinates={routeProgress.completedSegment} strokeColor="rgba(148, 163, 184, 0.55)" strokeWidth={7} />
+              ) : null}
 
-            {traveledCoordinates.length > 1 ? (
-              <Polyline coordinates={traveledCoordinates} strokeColor="rgba(245, 158, 11, 0.95)" strokeWidth={5} />
-            ) : null}
+              {routeProgress.remainingSegment.length > 1 ? (
+                <ReactNativePolyline coordinates={routeProgress.remainingSegment} strokeColor="rgba(15, 118, 110, 0.75)" strokeWidth={7} />
+              ) : null}
 
-          {startCoordinate ? (
-            <Marker coordinate={startCoordinate} title="Baslangic">
-              <View style={[styles.mapMarker, styles.depotMarker]}>
-                <MaterialCommunityIcons name="warehouse" size={16} color="#fff" />
-              </View>
-            </Marker>
-          ) : null}
+              {traveledCoordinates.length > 1 ? (
+                <ReactNativePolyline coordinates={traveledCoordinates} strokeColor="rgba(245, 158, 11, 0.95)" strokeWidth={5} />
+              ) : null}
 
-          {routeStops.map((stop) => {
-            if (!stop.coordinate) return null;
-            return (
-                <Marker
-                  key={stop.key}
-                  coordinate={stop.coordinate}
-                  title={`${stop.order}. ${stop.title}`}
-                  description={`${stop.address} | ${stop.requestCount} siparis`}
-                  onPress={() => {
-                    setActiveStopId(stop.id);
-                    confirmCompleteStop(stop);
-                  }}
-                >
-                  <View style={[styles.mapMarker, stop.visited && styles.visitedMarker, activeStopId === stop.id && styles.activeMarker]}>
-                    <Text style={styles.markerText}>{stop.order}</Text>
-                  </View>
-                </Marker>
-            );
-          })}
+              {startCoordinate ? (
+                <ReactNativeMarker coordinate={startCoordinate} anchor={{ x: 0.5, y: 1 }} zIndex={20}>
+                  <RoutePin type="start" />
+                </ReactNativeMarker>
+              ) : null}
 
-          {endCoordinate ? (
-            <Marker coordinate={endCoordinate} title="Bitis">
-              <View style={[styles.mapMarker, styles.endMarker]}>
-                <MaterialCommunityIcons name="flag-checkered" size={16} color="#fff" />
-              </View>
-            </Marker>
-          ) : null}
+              {routeStops.map((stop) => {
+                if (!stop.coordinate) return null;
+                return (
+                  <ReactNativeMarker
+                    key={stop.key}
+                    coordinate={stop.coordinate}
+                    anchor={{ x: 0.5, y: 1 }}
+                    zIndex={10}
+                    onPress={() => {
+                      setActiveStopId(stop.id);
+                      confirmCompleteStop(stop);
+                    }}
+                  >
+                    <RoutePin
+                      type={stop.visited ? "visited" : "stop"}
+                      label={String(stop.order)}
+                      active={activeStopId === stop.id}
+                    />
+                  </ReactNativeMarker>
+                );
+              })}
 
-            {currentCoordinate ? (
-              <Marker
-                coordinate={currentCoordinate}
-                title="Anlik Konum"
-              >
-              <View style={[styles.mapMarker, styles.driverMarker]}>
-                <MaterialCommunityIcons name="truck-fast" size={16} color="#fff" />
-              </View>
-            </Marker>
-          ) : null}
-        </MapView>
+              {endCoordinate ? (
+                <ReactNativeMarker coordinate={endCoordinate} anchor={{ x: 0.5, y: 1 }} zIndex={20}>
+                  <RoutePin type="end" />
+                </ReactNativeMarker>
+              ) : null}
+
+              {currentCoordinate ? (
+                <ReactNativeMarker coordinate={currentCoordinate} anchor={{ x: 0.5, y: 1 }} zIndex={30}>
+                  <RoutePin type="driver" />
+                </ReactNativeMarker>
+              ) : null}
+            </ReactNativeMapView>
+          ) : (
+            <MapLibreMapView
+              ref={mapRef}
+              style={styles.map}
+              mapStyle={mapStyleUrl}
+              compassEnabled
+              scaleBarEnabled={false}
+              logoEnabled={false}
+              attributionEnabled={false}
+              onDidFinishLoadingMap={() => setIsMapReady(true)}
+            >
+              {showTrafficLayer && trafficTileUrl ? (
+                <RasterSource id="driver-traffic-source" tileUrlTemplates={[trafficTileUrl]} tileSize={256}>
+                  <RasterLayer id="driver-traffic-layer" style={{ rasterOpacity: 0.84 }} />
+                </RasterSource>
+              ) : null}
+
+              <Camera
+                ref={cameraRef}
+                defaultSettings={{
+                  centerCoordinate: toLngLat(mapRegion),
+                  zoomLevel: zoomFromRegion(mapRegion),
+                }}
+              />
+
+              {routeCoordinates.length > 1 ? (
+                <ShapeSource id="driver-route-base" shape={lineFeatureFromCoordinates(routeCoordinates)}>
+                  <LineLayer
+                    id="driver-route-base-line"
+                    style={{ lineColor: "rgba(148, 163, 184, 0.35)", lineWidth: 6, lineCap: "round", lineJoin: "round" }}
+                  />
+                </ShapeSource>
+              ) : null}
+
+              {routeProgress.completedSegment.length > 1 ? (
+                <ShapeSource id="driver-route-completed" shape={lineFeatureFromCoordinates(routeProgress.completedSegment)}>
+                  <LineLayer
+                    id="driver-route-completed-line"
+                    style={{ lineColor: "rgba(148, 163, 184, 0.55)", lineWidth: 7, lineCap: "round", lineJoin: "round" }}
+                  />
+                </ShapeSource>
+              ) : null}
+
+              {routeProgress.remainingSegment.length > 1 ? (
+                <ShapeSource id="driver-route-remaining" shape={lineFeatureFromCoordinates(routeProgress.remainingSegment)}>
+                  <LineLayer
+                    id="driver-route-remaining-line"
+                    style={{ lineColor: "rgba(15, 118, 110, 0.75)", lineWidth: 7, lineCap: "round", lineJoin: "round" }}
+                  />
+                </ShapeSource>
+              ) : null}
+
+              {traveledCoordinates.length > 1 ? (
+                <ShapeSource id="driver-traveled-route" shape={lineFeatureFromCoordinates(traveledCoordinates)}>
+                  <LineLayer
+                    id="driver-traveled-route-line"
+                    style={{ lineColor: "rgba(245, 158, 11, 0.95)", lineWidth: 5, lineCap: "round", lineJoin: "round" }}
+                  />
+                </ShapeSource>
+              ) : null}
+
+              {startCoordinate ? (
+                <MarkerView coordinate={toLngLat(startCoordinate)} anchor={{ x: 0.5, y: 1 }}>
+                  <RoutePin type="start" />
+                </MarkerView>
+              ) : null}
+
+              {routeStops.map((stop) => {
+                if (!stop.coordinate) return null;
+                return (
+                  <MarkerView key={stop.key} coordinate={toLngLat(stop.coordinate)} anchor={{ x: 0.5, y: 1 }}>
+                    <Pressable
+                      onPress={() => {
+                        setActiveStopId(stop.id);
+                        confirmCompleteStop(stop);
+                      }}
+                    >
+                      <RoutePin
+                        type={stop.visited ? "visited" : "stop"}
+                        label={String(stop.order)}
+                        active={activeStopId === stop.id}
+                      />
+                    </Pressable>
+                  </MarkerView>
+                );
+              })}
+
+              {endCoordinate ? (
+                <MarkerView coordinate={toLngLat(endCoordinate)} anchor={{ x: 0.5, y: 1 }}>
+                  <RoutePin type="end" />
+                </MarkerView>
+              ) : null}
+
+              {currentCoordinate ? (
+                <MarkerView coordinate={toLngLat(currentCoordinate)} anchor={{ x: 0.5, y: 1 }}>
+                  <RoutePin type="driver" />
+                </MarkerView>
+              ) : null}
+            </MapLibreMapView>
+          )}
 
         <View style={[styles.topOverlay, !isTopOverlayExpanded && styles.topOverlayCollapsed]}>
           <View style={styles.overlayHeaderRow}>
@@ -731,14 +938,36 @@ export default function DriverScreen() {
                   onPress={() => {
                     if (currentCoordinate) {
                       animateToDriver(currentCoordinate);
-                    } else if (mapRef.current && isMapReady) {
+                    } else if (isExpoGo && mapRef.current?.animateToRegion) {
                       mapRef.current.animateToRegion(mapRegion, 500);
+                    } else if (cameraRef.current && isMapReady) {
+                      cameraRef.current.setCamera({
+                        centerCoordinate: toLngLat(mapRegion),
+                        zoomLevel: zoomFromRegion(mapRegion),
+                        animationDuration: 500,
+                      });
                     }
                   }}
                 >
                   <MaterialCommunityIcons name="map-search-outline" size={16} color={colors.primary} />
                   <Text style={styles.miniPillText}>Merkeze al</Text>
                 </Pressable>
+
+                {trafficTileUrl ? (
+                  <Pressable
+                    style={[styles.miniPill, showTrafficLayer && styles.miniPillActive]}
+                    onPress={() => setShowTrafficLayer((previous) => !previous)}
+                  >
+                    <MaterialCommunityIcons
+                      name="traffic-light-outline"
+                      size={16}
+                      color={showTrafficLayer ? "#fff" : colors.primary}
+                    />
+                    <Text style={[styles.miniPillText, showTrafficLayer && styles.miniPillTextActive]}>
+                      {showTrafficLayer ? "Trafik acik" : "Trafik kapali"}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
 
               <View style={styles.actionsRow}>
@@ -823,17 +1052,7 @@ export default function DriverScreen() {
                       style={[styles.stopActionButton, styles.focusButton]}
                       onPress={() => {
                         setActiveStopId(stop.id);
-                        if (stop.coordinate && mapRef.current && isMapReady) {
-                          mapRef.current.animateToRegion(
-                            {
-                              latitude: stop.coordinate.latitude,
-                              longitude: stop.coordinate.longitude,
-                              latitudeDelta: 0.008,
-                              longitudeDelta: 0.008,
-                            },
-                            450
-                          );
-                        }
+                        centerMapOnCoordinate(stop.coordinate);
                       }}
                     >
                       <Text style={styles.focusButtonText}>Haritada Ac</Text>
@@ -937,6 +1156,9 @@ const styles = StyleSheet.create({
   infoText: {
     color: colors.muted,
     textAlign: "center",
+  },
+  mapWarningText: {
+    marginTop: 10,
   },
   container: {
     flex: 1,
@@ -1183,6 +1405,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 12,
   },
+  warningButton: {
+    marginTop: 18,
+    maxWidth: 220,
+  },
   primaryButton: {
     backgroundColor: colors.primary,
   },
@@ -1372,6 +1598,68 @@ const styles = StyleSheet.create({
   completeButtonText: {
     color: "#fff",
     fontWeight: "800",
+  },
+  pinWrap: {
+    alignItems: "center",
+  },
+  pinWrapActive: {
+    transform: [{ scale: 1.08 }],
+  },
+  pinBody: {
+    minWidth: 34,
+    height: 34,
+    paddingHorizontal: 8,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    ...shadows.card,
+  },
+  pinBodyStart: {
+    backgroundColor: "#0f172a",
+  },
+  pinBodyEnd: {
+    backgroundColor: "#2563eb",
+  },
+  pinBodyDriver: {
+    backgroundColor: "#dc2626",
+  },
+  pinBodyVisited: {
+    backgroundColor: colors.success,
+  },
+  pinBodyStop: {
+    backgroundColor: colors.primary,
+  },
+  pinLabel: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 13,
+  },
+  pinTail: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 7,
+    borderRightWidth: 7,
+    borderTopWidth: 11,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    marginTop: -2,
+  },
+  pinTailStart: {
+    borderTopColor: "#0f172a",
+  },
+  pinTailEnd: {
+    borderTopColor: "#2563eb",
+  },
+  pinTailDriver: {
+    borderTopColor: "#dc2626",
+  },
+  pinTailVisited: {
+    borderTopColor: colors.success,
+  },
+  pinTailStop: {
+    borderTopColor: colors.primary,
   },
   mapMarker: {
     width: 30,

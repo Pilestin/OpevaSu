@@ -14,6 +14,12 @@ const runtimeEnv = {
   routingSaUrl: process.env.EXPO_PUBLIC_ROUTING_SA_URL || "",
   routingTsUrl: process.env.EXPO_PUBLIC_ROUTING_TS_URL || "",
   fleetVehiclesUrl: process.env.EXPO_PUBLIC_FLEET_VEHICLES_URL || "",
+  mapStyleUrl: process.env.EXPO_PUBLIC_MAP_STYLE_URL || "",
+  mapTilerKey: process.env.EXPO_PUBLIC_MAPTILER_KEY || "",
+  mapTilerStyleId: process.env.EXPO_PUBLIC_MAPTILER_STYLE_ID || "",
+  tomTomTrafficKey: process.env.EXPO_PUBLIC_TOMTOM_TRAFFIC_KEY || "",
+  tomTomTrafficStyle: process.env.EXPO_PUBLIC_TOMTOM_TRAFFIC_STYLE || "",
+  googleMapsApiKeyConfigured: Boolean(googleMapsApiKey),
 };
 
 const androidConfig = {
@@ -50,7 +56,7 @@ module.exports = {
     web: {
       bundler: "metro",
     },
-    plugins: ["expo-asset", "expo-font", "./plugins/withAndroidCleartext"],
+    plugins: ["expo-asset", "expo-font", "@maplibre/maplibre-react-native", "./plugins/withAndroidCleartext"],
     extra: {
       eas: {
         projectId: "fe7affa3-4ea9-4115-a2ed-18eceba52ff0",
