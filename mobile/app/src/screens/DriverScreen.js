@@ -43,6 +43,17 @@ const ShapeSource = mapLibreModule?.ShapeSource;
 const LineLayer = mapLibreModule?.LineLayer;
 const RasterSource = mapLibreModule?.RasterSource;
 const RasterLayer = mapLibreModule?.RasterLayer;
+const TRACKING_OPTIONS = {
+  accuracy: Location.Accuracy.Highest,
+  timeInterval: 2000,
+  distanceInterval: 3,
+};
+const MAX_ACCEPTED_ACCURACY_METERS = 80;
+const MAX_CAMERA_FOLLOW_ACCURACY_METERS = 45;
+const MAX_LOCATION_JUMP_METERS = 180;
+const MAX_REASONABLE_SPEED_MPS = 45;
+const PUBLISH_MIN_INTERVAL_MS = 4000;
+const PUBLISH_MIN_DISTANCE_METERS = 10;
 
 function RoutePin({ type = "stop", label = "", active = false }) {
   const iconMap = {
@@ -261,6 +272,50 @@ function appendTravelCoordinate(previous, nextCoordinate) {
   return [...previous, nextCoordinate];
 }
 
+function shouldDiscardLocationUpdate(nextLocation, previousLocation) {
+  const latitude = Number(nextLocation?.coords?.latitude);
+  const longitude = Number(nextLocation?.coords?.longitude);
+  const accuracy = Number(nextLocation?.coords?.accuracy);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return true;
+  }
+
+  if (Number.isFinite(accuracy) && accuracy > MAX_ACCEPTED_ACCURACY_METERS) {
+    return true;
+  }
+
+  const previousLatitude = Number(previousLocation?.coords?.latitude);
+  const previousLongitude = Number(previousLocation?.coords?.longitude);
+  if (!Number.isFinite(previousLatitude) || !Number.isFinite(previousLongitude)) {
+    return false;
+  }
+
+  const distanceMeters = haversineDistanceMeters(
+    { latitude: previousLatitude, longitude: previousLongitude },
+    { latitude, longitude }
+  );
+  const previousTimestamp = Number(previousLocation?.timestamp);
+  const nextTimestamp = Number(nextLocation?.timestamp);
+  const elapsedSeconds =
+    Number.isFinite(previousTimestamp) && Number.isFinite(nextTimestamp) && nextTimestamp > previousTimestamp
+      ? (nextTimestamp - previousTimestamp) / 1000
+      : null;
+
+  if (Number.isFinite(elapsedSeconds) && elapsedSeconds > 0) {
+    const estimatedSpeed = distanceMeters / elapsedSeconds;
+    if (estimatedSpeed > MAX_REASONABLE_SPEED_MPS) {
+      return true;
+    }
+  }
+
+  if (Number.isFinite(elapsedSeconds) && elapsedSeconds < 4 && distanceMeters > MAX_LOCATION_JUMP_METERS) {
+    return true;
+  }
+
+  return false;
+}
+
 function projectCoordinate(coordinate, headingDegrees, distanceMeters) {
   if (!coordinate || !Number.isFinite(headingDegrees) || !Number.isFinite(distanceMeters)) {
     return coordinate;
@@ -288,6 +343,17 @@ function projectCoordinate(coordinate, headingDegrees, distanceMeters) {
     latitude: (projectedLatitude * 180) / Math.PI,
     longitude: (projectedLongitude * 180) / Math.PI,
   };
+}
+
+function normalizeHeading(value) {
+  const heading = Number(value);
+  if (!Number.isFinite(heading)) return null;
+  return ((heading % 360) + 360) % 360;
+}
+
+function getHeadingDelta(previous, next) {
+  if (!Number.isFinite(previous) || !Number.isFinite(next)) return 0;
+  return ((next - previous + 540) % 360) - 180;
 }
 
 function findNearestRouteIndex(routeCoordinates, currentCoordinate) {
@@ -332,6 +398,7 @@ export default function DriverScreen() {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [lastMatchedStop, setLastMatchedStop] = useState(null);
   const [lastDeliveryUpdateCount, setLastDeliveryUpdateCount] = useState(0);
+  const [statusBanner, setStatusBanner] = useState("");
   const [traveledCoordinates, setTraveledCoordinates] = useState([]);
   const [followDriver, setFollowDriver] = useState(true);
   const [navigationViewEnabled, setNavigationViewEnabled] = useState(true);
@@ -345,20 +412,54 @@ export default function DriverScreen() {
   const mapRef = useRef(null);
   const cameraRef = useRef(null);
   const locationSubscriptionRef = useRef(null);
+  const lastAcceptedLocationRef = useRef(null);
   const lastPublishedAtRef = useRef(0);
+  const lastPublishedCoordinateRef = useRef(null);
+  const publishInFlightRef = useRef(false);
+  const pendingPublishLocationRef = useRef(null);
+  const lastCameraAtRef = useRef(0);
+  const stableHeadingRef = useRef(null);
   const baseMapOptions = useMemo(() => getBaseMapOptions(), []);
   const [selectedBaseMap, setSelectedBaseMap] = useState(baseMapOptions[0]?.id || "streets");
   const mapStyleUrl = useMemo(() => resolveMapStyleUrl(selectedBaseMap), [selectedBaseMap]);
   const expoMapType = useMemo(() => resolveExpoMapType(selectedBaseMap), [selectedBaseMap]);
   const trafficTileUrl = useMemo(() => resolveTomTomTrafficTileUrl(), []);
   const [showTrafficLayer, setShowTrafficLayer] = useState(false);
+  const resolveStableHeading = useCallback((heading, speed) => {
+    const normalizedHeading = normalizeHeading(heading);
+    const normalizedSpeed = Number(speed);
+
+    if (normalizedHeading == null || !Number.isFinite(normalizedSpeed) || normalizedSpeed < 1.8) {
+      return null;
+    }
+
+    if (stableHeadingRef.current == null) {
+      stableHeadingRef.current = normalizedHeading;
+      return normalizedHeading;
+    }
+
+    const delta = getHeadingDelta(stableHeadingRef.current, normalizedHeading);
+    if (Math.abs(delta) < 4) {
+      return stableHeadingRef.current;
+    }
+
+    stableHeadingRef.current = normalizeHeading(stableHeadingRef.current + delta * 0.22);
+    return stableHeadingRef.current;
+  }, []);
   const centerMapOnCoordinate = useCallback(
-    (coordinate, zoomLevel = 16.8, heading = null) => {
+    (coordinate, zoomLevel = 16.8, heading = null, speed = null, force = false) => {
       if (!coordinate || !isMapReady) return;
 
-      const normalizedHeading = Number.isFinite(Number(heading)) ? Number(heading) : null;
-      const shouldUseNavigationView =
-        navigationViewEnabled && normalizedHeading != null && Math.abs(normalizedHeading) > 1;
+      if (!force) {
+        const now = Date.now();
+        if (now - lastCameraAtRef.current < 900) {
+          return;
+        }
+        lastCameraAtRef.current = now;
+      }
+
+      const normalizedHeading = resolveStableHeading(heading, speed);
+      const shouldUseNavigationView = navigationViewEnabled && normalizedHeading != null;
       const targetCoordinate = shouldUseNavigationView
         ? projectCoordinate(coordinate, normalizedHeading, 120)
         : coordinate;
@@ -398,7 +499,7 @@ export default function DriverScreen() {
         animationDuration: 500,
       });
     },
-    [isExpoGo, isMapReady, navigationViewEnabled]
+    [isExpoGo, isMapReady, navigationViewEnabled, resolveStableHeading]
   );
 
   const loadRoutes = useCallback(
@@ -467,6 +568,7 @@ export default function DriverScreen() {
   useEffect(() => {
     setLastMatchedStop(null);
     setLastDeliveryUpdateCount(0);
+    setStatusBanner("");
     setActiveStopId("");
     setTraveledCoordinates([]);
     setFollowDriver(true);
@@ -474,7 +576,16 @@ export default function DriverScreen() {
     setSheetMode("collapsed");
     setIsTopOverlayExpanded(true);
     setIsMapReady(false);
+    stableHeadingRef.current = null;
+    lastCameraAtRef.current = 0;
+    lastAcceptedLocationRef.current = null;
   }, [selectedRouteId]);
+
+  useEffect(() => {
+    if (!statusBanner) return undefined;
+    const timeoutId = setTimeout(() => setStatusBanner(""), 3200);
+    return () => clearTimeout(timeoutId);
+  }, [statusBanner]);
 
   const markStopCompletedLocally = useCallback((deliveryPointId) => {
     const now = new Date().toISOString();
@@ -517,10 +628,14 @@ export default function DriverScreen() {
   }, [selectedRouteId]);
 
   const animateToDriver = useCallback(
-    (coordinate, heading = null) => {
+    (coordinate, heading = null, speed = null, accuracy = null) => {
       if (!coordinate || !followDriver || !isMapReady) return;
+      const normalizedAccuracy = Number(accuracy);
+      if (Number.isFinite(normalizedAccuracy) && normalizedAccuracy > MAX_CAMERA_FOLLOW_ACCURACY_METERS) {
+        return;
+      }
 
-      centerMapOnCoordinate(coordinate, 16.8, heading);
+      centerMapOnCoordinate(coordinate, 16.8, heading, speed);
     },
     [centerMapOnCoordinate, followDriver, isMapReady]
   );
@@ -543,15 +658,26 @@ export default function DriverScreen() {
         console.warn("Delivery session end failed:", error?.message || error);
       });
     }
+
+    publishInFlightRef.current = false;
+    pendingPublishLocationRef.current = null;
+    lastPublishedCoordinateRef.current = null;
+    lastAcceptedLocationRef.current = null;
   }, [selectedRoute, token, user]);
 
   const publishLocation = useCallback(
     async (location) => {
       if (!selectedRoute || !token) return;
 
+      const nextCoordinate = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
       const now = Date.now();
-      if (now - lastPublishedAtRef.current < 4000) return;
+      const movedDistance = haversineDistanceMeters(lastPublishedCoordinateRef.current, nextCoordinate);
+      if (now - lastPublishedAtRef.current < PUBLISH_MIN_INTERVAL_MS && movedDistance < PUBLISH_MIN_DISTANCE_METERS) return;
       lastPublishedAtRef.current = now;
+      lastPublishedCoordinateRef.current = nextCoordinate;
       setPublishing(true);
 
       try {
@@ -597,22 +723,57 @@ export default function DriverScreen() {
     [markStopCompletedLocally, selectedRoute, token, user]
   );
 
+  const flushQueuedPublish = useCallback(async () => {
+    if (publishInFlightRef.current || !pendingPublishLocationRef.current) return;
+
+    const nextLocation = pendingPublishLocationRef.current;
+    pendingPublishLocationRef.current = null;
+    publishInFlightRef.current = true;
+
+    try {
+      await publishLocation(nextLocation);
+    } finally {
+      publishInFlightRef.current = false;
+      if (pendingPublishLocationRef.current) {
+        setTimeout(() => {
+          void flushQueuedPublish();
+        }, 250);
+      }
+    }
+  }, [publishLocation]);
+
+  const queueLocationPublish = useCallback(
+    (location) => {
+      pendingPublishLocationRef.current = location;
+      void flushQueuedPublish();
+    },
+    [flushQueuedPublish]
+  );
+
   const handleLocationUpdate = useCallback(
-    async (nextLocation) => {
+    (nextLocation) => {
+      const previousLocation = lastAcceptedLocationRef.current;
+      if (shouldDiscardLocationUpdate(nextLocation, previousLocation)) return;
+      lastAcceptedLocationRef.current = nextLocation;
       setCurrentLocation(nextLocation);
       const nextCoordinate = {
         latitude: nextLocation.coords.latitude,
         longitude: nextLocation.coords.longitude,
       };
       setTraveledCoordinates((previous) => appendTravelCoordinate(previous, nextCoordinate));
-      animateToDriver(nextCoordinate, nextLocation?.coords?.heading);
-      await publishLocation(nextLocation);
+      animateToDriver(
+        nextCoordinate,
+        nextLocation?.coords?.heading,
+        nextLocation?.coords?.speed,
+        nextLocation?.coords?.accuracy
+      );
+      queueLocationPublish(nextLocation);
     },
-    [animateToDriver, publishLocation]
+    [animateToDriver, queueLocationPublish]
   );
 
   const startTracking = useCallback(async () => {
-    if (!selectedRoute || locationSubscriptionRef.current) return;
+    if (!selectedRoute || locationSubscriptionRef.current || startingTracking) return;
 
     setStartingTracking(true);
     try {
@@ -638,18 +799,14 @@ export default function DriverScreen() {
       });
 
       const current = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: TRACKING_OPTIONS.accuracy,
       });
-      await handleLocationUpdate(current);
+      handleLocationUpdate(current);
 
       locationSubscriptionRef.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 5000,
-          distanceInterval: 10,
-        },
-        async (nextLocation) => {
-          await handleLocationUpdate(nextLocation);
+        TRACKING_OPTIONS,
+        (nextLocation) => {
+          handleLocationUpdate(nextLocation);
         }
       );
 
@@ -659,7 +816,7 @@ export default function DriverScreen() {
     } finally {
       setStartingTracking(false);
     }
-  }, [handleLocationUpdate, selectedRoute, token, user]);
+  }, [handleLocationUpdate, selectedRoute, startingTracking, token, user]);
 
   const completeStop = useCallback(
     async (stop) => {
@@ -683,7 +840,7 @@ export default function DriverScreen() {
         setLastMatchedStop(response?.matched_stop || { delivery_point_id: stop.id, distance_meters: 0 });
         setLastDeliveryUpdateCount(Number(response?.updated_count || 0));
         setActiveStopId(stop.id);
-        Alert.alert("Siparis guncellendi", `${stop.title} teslimati tamamlandi olarak isaretlendi.`);
+        setStatusBanner(`${stop.title} teslimati tamamlandi olarak isaretlendi.`);
       } catch (error) {
         Alert.alert("Teslimat guncellenemedi", error.message);
       } finally {
@@ -717,16 +874,18 @@ export default function DriverScreen() {
 
   useEffect(() => {
     if (currentStep === "map" && selectedRoute && !trackingEnabled) {
-      startTracking();
+      void startTracking();
     }
+  }, [currentStep, selectedRoute, startTracking, trackingEnabled]);
 
+  useEffect(() => {
     return () => {
       if (locationSubscriptionRef.current) {
         locationSubscriptionRef.current.remove();
         locationSubscriptionRef.current = null;
       }
     };
-  }, [currentStep, selectedRoute, startTracking, trackingEnabled]);
+  }, []);
 
   useEffect(() => {
     if (currentStep !== "map" || !routeCoordinates.length || currentCoordinate || !isMapReady) return;
@@ -989,6 +1148,13 @@ export default function DriverScreen() {
                 <Text style={styles.overlayMeta}>Haritadaki duraga dokunup teslimati manuel onaylayabilirsin.</Text>
               )}
 
+              {statusBanner ? (
+                <View style={styles.infoPill}>
+                  <MaterialCommunityIcons name="check-decagram-outline" size={16} color={colors.primary} />
+                  <Text style={styles.infoPillText}>{statusBanner}</Text>
+                </View>
+              ) : null}
+
               <View style={styles.toggleRow}>
                 {baseMapOptions.map((option) => {
                   const isActive = selectedBaseMap === option.id;
@@ -1036,7 +1202,13 @@ export default function DriverScreen() {
                   style={styles.miniPill}
                   onPress={() => {
                     if (currentCoordinate) {
-                      animateToDriver(currentCoordinate, currentLocation?.coords?.heading);
+                      centerMapOnCoordinate(
+                        currentCoordinate,
+                        16.8,
+                        currentLocation?.coords?.heading,
+                        currentLocation?.coords?.speed,
+                        true
+                      );
                     } else if (isExpoGo && mapRef.current?.animateToRegion) {
                       mapRef.current.animateToRegion(mapRegion, 500);
                     } else if (cameraRef.current && isMapReady) {
@@ -1179,7 +1351,7 @@ export default function DriverScreen() {
                           style={[styles.stopActionButton, styles.focusButton]}
                           onPress={() => {
                             setActiveStopId(stop.id);
-                            centerMapOnCoordinate(stop.coordinate);
+                            centerMapOnCoordinate(stop.coordinate, 16.8, null, null, true);
                           }}
                         >
                           <Text style={styles.focusButtonText}>Haritada Ac</Text>
@@ -1489,6 +1661,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   matchPillText: {
+    flex: 1,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  infoPill: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#ecfeff",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  infoPillText: {
     flex: 1,
     color: colors.text,
     fontWeight: "600",
